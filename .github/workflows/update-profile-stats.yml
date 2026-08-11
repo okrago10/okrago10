@@ -1,0 +1,40 @@
+name: Update profile stats
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 毎日 UTC 0:00 (JST 9:00)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: profile-stats
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1 # 2026-07-20 リリース
+
+      - uses: actions/setup-node@v7.0.0 # 2026-07-14 リリース
+        with:
+          # 最新の 26.7.0 はリリースから7日未満のため、26.6.0 (2026-08-03) に固定
+          node-version: "26.6.0"
+
+      - name: Generate stats card
+        env:
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN }}
+          GITHUB_LOGIN: ${{ github.repository_owner }}
+          OUT_PATH: assets/stats.svg
+        run: node scripts/generate-stats.mjs
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/stats.svg
+          git diff --staged --quiet || git commit -m "chore: update stats card"
+          git push

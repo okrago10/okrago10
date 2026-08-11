@@ -1,9 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" viewBox="0 0 420 250" role="img" aria-label="GitHub stats (pending first update)">
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" viewBox="0 0 420 250" role="img" aria-label="GitHub stats for okrago10">
   <style>
     .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .note { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
   </style>
   <rect x="0.5" y="0.5" width="419" height="249" rx="12" fill="#ffffff" stroke="#d0d7de"/>
-  <text x="24" y="42" class="title">GitHub Stats</text>
-  <text x="210" y="140" text-anchor="middle" class="note">Stats will appear after the first workflow run.</text>
+  <text x="24" y="42" class="title">okura&#39;s GitHub Stats</text>
+  <text x="24" y="76" class="label">Total Stars</text><text x="396" y="76" text-anchor="end" class="value">0</text>
+  <text x="24" y="102" class="label">Commits (past year)</text><text x="396" y="102" text-anchor="end" class="value">119</text>
+  <text x="24" y="128" class="label">Pull Requests</text><text x="396" y="128" text-anchor="end" class="value">35</text>
+  <text x="24" y="154" class="label">Issues</text><text x="396" y="154" text-anchor="end" class="value">2</text>
+  <text x="24" y="180" class="label">Followers</text><text x="396" y="180" text-anchor="end" class="value">0</text>
+  <text x="24" y="202" class="section">Top Languages</text>
+  <clipPath id="bar"><rect x="24" y="212" width="372" height="8" rx="4"/></clipPath>
+  <rect x="24" y="212" width="372" height="8" rx="4" fill="#eaeef2"/>
+  <g clip-path="url(#bar)"><rect x="24" y="212" width="186" height="8" fill="#3178c6"/><rect x="210" y="212" width="93" height="8" fill="#f1e05a"/><rect x="303" y="212" width="93" height="8" fill="#dea584"/></g>
+  <circle cx="29" cy="232" r="5" fill="#3178c6"/><text x="40" y="236" class="legend">TypeScript 50%</text><circle cx="157" cy="232" r="5" fill="#f1e05a"/><text x="168" y="236" class="legend">JavaScript 25%</text><circle cx="285" cy="232" r="5" fill="#dea584"/><text x="296" y="236" class="legend">Rust 25%</text>
 </svg>

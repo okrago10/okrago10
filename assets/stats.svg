@@ -9,13 +9,13 @@
   <rect x="0.5" y="0.5" width="419" height="249" rx="12" fill="#ffffff" stroke="#d0d7de"/>
   <text x="24" y="42" class="title">okura&#39;s GitHub Stats</text>
   <text x="24" y="76" class="label">Total Stars</text><text x="396" y="76" text-anchor="end" class="value">0</text>
-  <text x="24" y="102" class="label">Commits (past year)</text><text x="396" y="102" text-anchor="end" class="value">150</text>
-  <text x="24" y="128" class="label">Pull Requests</text><text x="396" y="128" text-anchor="end" class="value">68</text>
-  <text x="24" y="154" class="label">Issues</text><text x="396" y="154" text-anchor="end" class="value">46</text>
+  <text x="24" y="102" class="label">Commits (past year)</text><text x="396" y="102" text-anchor="end" class="value">180</text>
+  <text x="24" y="128" class="label">Pull Requests</text><text x="396" y="128" text-anchor="end" class="value">89</text>
+  <text x="24" y="154" class="label">Issues</text><text x="396" y="154" text-anchor="end" class="value">52</text>
   <text x="24" y="180" class="label">Followers</text><text x="396" y="180" text-anchor="end" class="value">0</text>
   <text x="24" y="202" class="section">Top Languages</text>
   <clipPath id="bar"><rect x="24" y="212" width="372" height="8" rx="4"/></clipPath>
   <rect x="24" y="212" width="372" height="8" rx="4" fill="#eaeef2"/>
-  <g clip-path="url(#bar)"><rect x="24" y="212" width="223" height="8" fill="#3178c6"/><rect x="247" y="212" width="74" height="8" fill="#f1e05a"/><rect x="321" y="212" width="75" height="8" fill="#dea584"/></g>
-  <circle cx="29" cy="232" r="5" fill="#3178c6"/><text x="40" y="236" class="legend">TypeScript 60%</text><circle cx="157" cy="232" r="5" fill="#f1e05a"/><text x="168" y="236" class="legend">JavaScript 20%</text><circle cx="285" cy="232" r="5" fill="#dea584"/><text x="296" y="236" class="legend">Rust 20%</text>
+  <g clip-path="url(#bar)"><rect x="24" y="212" width="248" height="8" fill="#3178c6"/><rect x="272" y="212" width="62" height="8" fill="#f1e05a"/><rect x="334" y="212" width="62" height="8" fill="#dea584"/></g>
+  <circle cx="29" cy="232" r="5" fill="#3178c6"/><text x="40" y="236" class="legend">TypeScript 67%</text><circle cx="157" cy="232" r="5" fill="#f1e05a"/><text x="168" y="236" class="legend">JavaScript 17%</text><circle cx="285" cy="232" r="5" fill="#dea584"/><text x="296" y="236" class="legend">Rust 17%</text>
 </svg>

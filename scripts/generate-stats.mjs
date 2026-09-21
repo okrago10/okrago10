@@ -5,10 +5,11 @@
 //   OUT_PATH      - 出力先 SVG パス (省略時: assets/stats.svg)
 // 出力にタイムスタンプを含めないため、統計が変わらない日はファイルも変化しない。
 //
-// カードは表示時に一度だけ再生されるアニメーションを持つ。CSS アニメーションが
-// 効かない環境 (静的レンダラなど) でも最終状態がそのまま見えるよう、初期値では
-// なく animation の fill-mode でアニメーション開始状態を作っている。
-// prefers-reduced-motion: reduce の環境では全アニメーションを無効化する。
+// カードは表示時に一度だけ再生されるアニメーションを持つ (全体で約 1.7 秒)。
+// すべての要素は完成状態を CSS の既定値として持ち、アニメーション側が開始状態を
+// 作る。そのため CSS アニメーションを解釈しないレンダラでは完成状態がそのまま
+// 出る。ただしアニメーションを解釈するレンダラが t=0 で静止画にした場合は途中
+// 状態が写る。prefers-reduced-motion: reduce では全アニメーションを止める。
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -114,7 +115,33 @@ const esc = (s) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
 
-// カウントアップ演出の途中値を取る割合。末尾に向かって減速する。
+// カード寸法。枠線の rect は 0.5 ずらして描くので幅・高さは 1 小さい。
+const cardW = 420;
+const cardH = 250;
+const cardR = 12;
+// 枠線を一周描くためのダッシュ長。角丸を含む外周を切り上げて使う。
+// 実際の外周より短いと、アニメーション後も破線の隙間が残ってしまう。
+const framePerimeter = Math.ceil(
+  2 * (cardW - 1 - 2 * cardR) +
+    2 * (cardH - 1 - 2 * cardR) +
+    2 * Math.PI * cardR,
+);
+
+// 言語バーの位置とサイズ。セグメント・クリップ・下地で共有する。
+const barX = 24;
+const barY = 212;
+const barWidth = 372;
+const barHeight = 8;
+
+// アニメーションのタイミング (秒)。
+const rowBase = 0.3; // 1 行目がスライドインを始める時刻
+const rowGap = 0.07; // 行ごとの遅延差
+const countLag = 0.1; // スライドイン開始からカウントアップ開始までの間
+const countDur = 0.5; // カウントアップ全体の長さ
+const legendBase = 1.2; // 凡例 1 件目が現れる時刻
+const legendGap = 0.08;
+
+// カウントアップ演出で通過する値の割合。末尾に向かって減速する。
 const STEPS = [0, 0.35, 0.62, 0.81, 0.93, 1];
 
 const rows = [
@@ -125,27 +152,50 @@ const rows = [
   ["Followers", user.followers.totalCount],
 ];
 
-// 各行は左からスライドインし、数値は STEPS 分のテキストを重ねて順に切り替える
-// ことでカウントアップに見せる。--d は行ごとの遅延で、子孫の .tick にも継承される。
+// 各行は左からスライドインし、数値は途中値のテキストを重ねて順に切り替える
+// ことでカウントアップに見せる。表示区間は CSS 変数で要素ごとに渡すので、
+// STEPS を増減してもスタイルシート側の変更は要らない。
 const rowsSvg = rows
   .map(([label, value], i) => {
     const y = 76 + i * 26;
-    const delay = (0.45 + i * 0.1).toFixed(2);
-    const ticks = STEPS.map((t, k) => {
-      // 最終値以外は演出用の途中値なので、支援技術からは隠す
-      const hidden = k === STEPS.length - 1 ? "" : ' aria-hidden="true"';
-      return `<text x="396" y="${y}" text-anchor="end" class="value tick t${k}"${hidden}>${fmt(Math.round(value * t))}</text>`;
-    }).join("");
+    const rowDelay = rowBase + i * rowGap;
+    const countStart = rowDelay + countLag;
+
+    // 表示が変わらない途中値は出さない。値が 0 の行なら最終値の 1 つだけになる。
+    const frames = [];
+    for (const t of STEPS) {
+      const text = fmt(Math.round(value * t));
+      if (frames.at(-1) !== text) frames.push(text);
+    }
+    const segment = countDur / frames.length;
+
+    const ticks = frames
+      .map((text, k) => {
+        const isLast = k === frames.length - 1;
+        const start = countStart + k * segment;
+        // 最終値は既定で表示しておき、出番が来るまでを hide で伏せる。
+        // 途中値は既定で非表示にし、自分の区間だけ show で見せる。
+        const dur = isLast ? start : segment;
+        const delay = isLast ? 0 : start;
+        const cls = isLast ? "value tick tick-last" : "value tick";
+        // ルートの role="img" により子孫は本来読み上げられないが、それを
+        // 尊重しないテキスト抽出への保険として途中値には aria-hidden を付ける。
+        const hidden = isLast ? "" : ' aria-hidden="true"';
+        return (
+          `<text x="396" y="${y}" text-anchor="end" class="${cls}" ` +
+          `style="--dur:${dur.toFixed(2)}s;--dly:${delay.toFixed(2)}s"${hidden}>${text}</text>`
+        );
+      })
+      .join("");
+
     return (
-      `<g class="row" style="--d:${delay}s">` +
+      `<g class="row" style="--d:${rowDelay.toFixed(2)}s">` +
       `<text x="24" y="${y}" class="label">${esc(label)}</text>${ticks}` +
       `</g>`
     );
   })
   .join("\n  ");
 
-const barX = 24;
-const barWidth = 372;
 let offset = 0;
 const segments = topLangs
   .map(([, { count, color }], i) => {
@@ -153,7 +203,7 @@ const segments = topLangs
       i === topLangs.length - 1
         ? barWidth - offset
         : Math.round((count / langTotal) * barWidth);
-    const rect = `<rect x="${barX + offset}" y="212" width="${width}" height="8" fill="${color}"/>`;
+    const rect = `<rect x="${barX + offset}" y="${barY}" width="${width}" height="${barHeight}" fill="${color}"/>`;
     offset += width;
     return rect;
   })
@@ -163,7 +213,7 @@ let legendX = 24;
 const legend = topLangs
   .map(([name, { count, color }], i) => {
     const pct = Math.round((count / langTotal) * 100);
-    const delay = (1.6 + i * 0.12).toFixed(2);
+    const delay = (legendBase + i * legendGap).toFixed(2);
     const item =
       `<g class="legend-item" style="--d:${delay}s">` +
       `<circle cx="${legendX + 5}" cy="232" r="5" fill="${color}"/>` +
@@ -176,7 +226,7 @@ const legend = topLangs
 
 const title = `${user.name ?? login}'s GitHub Stats`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" viewBox="0 0 420 250" role="img" aria-label="GitHub stats for ${esc(login)}">
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" role="img" aria-label="GitHub stats for ${esc(login)}">
   <style>
     .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
     .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
@@ -184,30 +234,31 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" vi
     .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
     .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
 
-    .frame { animation: draw 1.1s ease-out both; }
-    .title { animation: fadeUp .5s cubic-bezier(.2,.7,.3,1) both .25s; }
-    .row { animation: rowIn .45s cubic-bezier(.2,.7,.3,1) both var(--d); }
-    .section { animation: fadeUp .5s cubic-bezier(.2,.7,.3,1) both 1s; }
-    .reveal { transform-origin: 24px 216px; animation: grow .8s cubic-bezier(.2,.7,.3,1) both 1.1s; }
-    .legend-item { animation: fadeUp .45s cubic-bezier(.2,.7,.3,1) both var(--d); }
+    .frame { animation: draw .7s ease-out both; }
+    .title { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both .15s; }
+    .row { animation: rowIn .35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
+    .section, .track { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both .75s; }
+    .reveal {
+      transform-box: view-box;
+      transform-origin: ${barX}px ${barY + barHeight / 2}px;
+      animation: grow .6s cubic-bezier(.2,.7,.3,1) both .85s;
+    }
+    .legend-item { animation: fadeUp .35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
 
+    /* 途中値は既定で隠し自分の区間だけ見せる。最終値はその逆で、
+       どちらもアニメーションが効かなければ完成状態のまま残る。 */
     .tick {
       opacity: 0;
-      animation-duration: .66s;
+      animation-name: show;
       animation-timing-function: linear;
-      animation-fill-mode: both;
-      animation-delay: calc(var(--d) + .12s);
+      animation-duration: var(--dur, 0s);
+      animation-delay: var(--dly, 0s);
     }
-    .t0 { animation-name: tk0; }
-    .t1 { animation-name: tk1; }
-    .t2 { animation-name: tk2; }
-    .t3 { animation-name: tk3; }
-    .t4 { animation-name: tk4; }
-    .t5 { opacity: 1; animation-name: tk5; }
+    .tick-last { opacity: 1; animation-name: hide; }
 
     @keyframes draw {
-      from { stroke-dasharray: 1320; stroke-dashoffset: 1320; }
-      to { stroke-dasharray: 1320; stroke-dashoffset: 0; }
+      from { stroke-dasharray: ${framePerimeter}; stroke-dashoffset: ${framePerimeter}; }
+      to { stroke-dasharray: ${framePerimeter}; stroke-dashoffset: 0; }
     }
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(6px); }
@@ -221,24 +272,20 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" vi
       from { transform: scaleX(0); }
       to { transform: scaleX(1); }
     }
-    @keyframes tk0 { 0%, 16.6% { opacity: 1; } 16.7%, 100% { opacity: 0; } }
-    @keyframes tk1 { 0%, 16.6% { opacity: 0; } 16.7%, 33.2% { opacity: 1; } 33.3%, 100% { opacity: 0; } }
-    @keyframes tk2 { 0%, 33.2% { opacity: 0; } 33.3%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
-    @keyframes tk3 { 0%, 49.9% { opacity: 0; } 50%, 66.5% { opacity: 1; } 66.6%, 100% { opacity: 0; } }
-    @keyframes tk4 { 0%, 66.5% { opacity: 0; } 66.6%, 83.2% { opacity: 1; } 83.3%, 100% { opacity: 0; } }
-    @keyframes tk5 { 0%, 83.2% { opacity: 0; } 83.3%, 100% { opacity: 1; } }
+    @keyframes show { from, to { opacity: 1; } }
+    @keyframes hide { from, to { opacity: 0; } }
 
     @media (prefers-reduced-motion: reduce) {
-      .frame, .title, .row, .section, .reveal, .legend-item, .tick { animation: none; }
+      * { animation: none !important; }
     }
   </style>
-  <rect class="frame" x="0.5" y="0.5" width="419" height="249" rx="12" fill="#ffffff" stroke="#d0d7de"/>
+  <rect class="frame" x="0.5" y="0.5" width="${cardW - 1}" height="${cardH - 1}" rx="${cardR}" fill="#ffffff" stroke="#d0d7de"/>
   <text x="24" y="42" class="title">${esc(title)}</text>
   ${rowsSvg}
   <text x="24" y="202" class="section">Top Languages</text>
-  <clipPath id="bar"><rect x="24" y="212" width="372" height="8" rx="4"/></clipPath>
-  <clipPath id="reveal"><rect class="reveal" x="24" y="212" width="372" height="8"/></clipPath>
-  <rect x="24" y="212" width="372" height="8" rx="4" fill="#eaeef2"/>
+  <clipPath id="bar"><rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barHeight / 2}"/></clipPath>
+  <clipPath id="reveal"><rect class="reveal" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}"/></clipPath>
+  <rect class="track" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barHeight / 2}" fill="#eaeef2"/>
   <g clip-path="url(#bar)"><g clip-path="url(#reveal)">${segments}</g></g>
   ${legend}
 </svg>

@@ -4,6 +4,13 @@ on:
   schedule:
     - cron: "0 0 * * *" # 毎日 UTC 0:00 (JST 9:00)
   workflow_dispatch:
+  # 生成側を変えたら次の定時実行を待たずにカードを作り直す。カード自体の
+  # コミットでは発火しないので、この push が自分を呼び戻すことはない。
+  push:
+    branches: [main]
+    paths:
+      - "scripts/**"
+      - ".github/workflows/update-profile-stats.yml"
 
 permissions:
   contents: write

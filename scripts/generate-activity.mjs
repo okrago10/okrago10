@@ -12,12 +12,13 @@
 // でも完成状態がそのまま出る。prefers-reduced-motion: reduce では全部止める。
 
 import {
+  cardShell,
   ease,
   esc,
   fmt,
-  framePerimeter,
   graphql,
   readEnv,
+  readNumber,
   searchCommits,
   sec,
   writeSvg,
@@ -27,7 +28,7 @@ const { token, login, outPath } = readEnv("assets/activity.svg");
 
 // コミット日時が UTC (末尾 Z) で記録されている場合に、どの地方時として
 // 読むか。オフセット付きで記録されている場合はそちらを優先する。
-const fallbackTzOffsetHours = Number(process.env.TZ_OFFSET_HOURS ?? 9);
+const fallbackTzOffsetHours = readNumber("TZ_OFFSET_HOURS", 9);
 // コミット検索は 1 ページ 100 件。多くても直近 500 件あれば分布は安定する。
 const maxCommitPages = 5;
 
@@ -71,7 +72,7 @@ const commits = await searchCommits(
 // ローカルの夜のコミットが朝に化けてしまう。
 const localParts = (iso) => {
   const m =
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(Z|[+-]\d{2}:\d{2})$/.exec(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})$/.exec(
       iso,
     );
   if (!m) return null;
@@ -91,12 +92,19 @@ const localParts = (iso) => {
 const hourCounts = new Array(24).fill(0);
 const weekdayCounts = new Array(7).fill(0);
 let analyzed = 0;
+let unparsed = 0;
 for (const item of commits) {
   const parts = localParts(item.commit?.author?.date ?? "");
-  if (!parts) continue;
+  if (!parts) {
+    unparsed += 1;
+    continue;
+  }
   hourCounts[parts.hour] += 1;
   weekdayCounts[parts.weekday] += 1;
   analyzed += 1;
+}
+if (unparsed) {
+  console.warn(`skipped ${unparsed} commits with an unexpected date format`);
 }
 
 const indexOfMax = (xs) => xs.reduce((best, v, i) => (v > xs[best] ? i : best), 0);
@@ -128,14 +136,12 @@ const summary = analyzed
   ? `Peak ${String(peakHour).padStart(2, "0")}:00 · Most active on ${peakDay} · ${fmt(analyzed)} commits analyzed`
   : "Commit timestamps are not available";
 
-// カード寸法。枠線の rect は線幅の半分だけ内側に寄せて描く。
+// カードの外枠と共通キーフレーム。セレクタとキーフレーム名の接頭辞もここで決まる。
+const rootClass = "gh-activity";
+const prefix = "gh-ac";
 const cardW = 420;
 const cardH = 300;
-const cardR = 12;
-const frameInset = 0.5;
-const frameW = cardW - 2 * frameInset;
-const frameH = cardH - 2 * frameInset;
-const frameDash = framePerimeter(frameW, frameH, cardR);
+const shell = cardShell({ rootClass, prefix, width: cardW, height: cardH });
 
 // 草のグリッド。1 列が 1 週、縦が日曜から土曜。
 const gridX = 24;
@@ -156,6 +162,10 @@ const hourPitch = chartW / 24;
 const hourBarW = 11;
 const axisY = 252;
 const summaryY = 274;
+// 右ぞろえの要素はすべてこの位置に合わせる。
+const contentRight = chartX + chartW;
+// 凡例の右に置く "More" のぶんの余白。
+const legendLabelGap = 32;
 
 // GitHub のカレンダーと同じ 5 段階の緑。
 const levels = [
@@ -180,6 +190,7 @@ const cellDefs = levels
   .join("");
 
 // アニメーションのタイミング (秒)。後続の要素は前の要素の完了時刻から導く。
+// 見出しと凡例だけは少し手前から重ねて、間延びしないようにしている。
 const frameDur = 0.7;
 const titleDelay = 0.15;
 const titleDur = 0.4;
@@ -196,7 +207,7 @@ const hourBase = calEnd;
 const hourGap = 0.012;
 const hourDur = 0.3;
 const axisDelay = hourBase + 0.1;
-const summaryDelay = hourBase + 24 * hourGap;
+const summaryDelay = hourBase + 23 * hourGap + hourDur;
 
 // 列ごとに translate でずらすので、セル側は y だけを持てばよい。
 const weeksSvg = weeks
@@ -215,23 +226,27 @@ const weeksSvg = weeks
   })
   .join("");
 
-// 月が変わる週にだけラベルを置く。近すぎるものは間引く。
-let previousMonth = -1;
-let lastLabelWeek = -99;
-const monthLabels = weeks
-  .map((week, i) => {
+// 月が変わる週にだけラベルを置く。前のラベルに近すぎるものは間引く。
+const monthLabelParts = [];
+{
+  let previousMonth = -1;
+  let lastLabelWeek = -99;
+  for (const [i, week] of weeks.entries()) {
     const month = Number(week.firstDay.slice(5, 7)) - 1;
     const changed = month !== previousMonth;
     // 月が変わったことは先に記録する。ここで記録しないと、間引いたラベルが
     // 翌週にずれて描かれてしまう。
     previousMonth = month;
     // 先頭の列は月の途中から始まることがあるので、その月のラベルは
-    // 次に月が変わるまで待つ。前のラベルに近すぎる場合も詰まるので出さない。
-    if (i === 0 || !changed || i - lastLabelWeek < 3) return "";
+    // 次に月が変わるまで待つ。ラベル同士が詰まる場合も出さない。
+    if (i === 0 || !changed || i - lastLabelWeek < 3) continue;
     lastLabelWeek = i;
-    return `<text x="${gridX + i * cellPitch}" y="${monthY}" class="axis">${monthNames[month]}</text>`;
-  })
-  .join("");
+    monthLabelParts.push(
+      `<text x="${gridX + i * cellPitch}" y="${monthY}" class="axis">${monthNames[month]}</text>`,
+    );
+  }
+}
+const monthLabels = monthLabelParts.join("");
 
 const maxHour = Math.max(...hourCounts);
 const hourBars = hourCounts
@@ -256,7 +271,7 @@ const hourAxis = [0, 6, 12, 18]
 
 // 凡例は右端ぞろえ。Less → 5 段階 → More の順に並べる。
 const legendCellsWidth = levels.length * cellPitch - cellGap;
-const legendCellsX = 396 - 32 - legendCellsWidth;
+const legendCellsX = contentRight - legendLabelGap - legendCellsWidth;
 const legendCells = levels
   .map(
     ([name], i) =>
@@ -266,61 +281,49 @@ const legendCells = levels
 
 const title = `${user.name ?? login}'s GitHub Activity`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="gh-activity" role="img" aria-label="GitHub activity for ${esc(login)}: ${fmt(calendar.totalContributions)} contributions in the past year">
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="${rootClass}" role="img" aria-label="GitHub activity for ${esc(login)}: ${fmt(calendar.totalContributions)} contributions in the past year">
   <style>
-    .gh-activity .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .gh-activity .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .gh-activity .value { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-    .gh-activity .axis { font: 400 9px 'Segoe UI', Ubuntu, sans-serif; fill: #8b949e; }
-    .gh-activity .summary { font: 400 11px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .${rootClass} .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
+    .${rootClass} .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .${rootClass} .value { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .${rootClass} .axis { font: 400 9px 'Segoe UI', Ubuntu, sans-serif; fill: #8b949e; }
+    .${rootClass} .summary { font: 400 11px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
 
-    .gh-activity .frame { animation: gh-ac-draw ${sec(frameDur)} ease-out both; }
-    .gh-activity .title { animation: gh-ac-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
-    .gh-activity .cal-heading { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(calHeadingDelay)}; }
-    .gh-activity .months { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(monthDelay)}; }
-    .gh-activity .week { animation: gh-ac-fadeIn ${sec(weekDur)} ${ease} both var(--d, 0s); }
-    .gh-activity .legend { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(legendDelay)}; }
-    .gh-activity .rhythm-heading { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
-    .gh-activity .baseline { animation: gh-ac-fadeIn ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
-    .gh-activity .hour-bar {
+${shell.css}
+    .${rootClass} .title { animation: ${prefix}-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
+    .${rootClass} .cal-heading { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(calHeadingDelay)}; }
+    .${rootClass} .months { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(monthDelay)}; }
+    .${rootClass} .week { animation: ${prefix}-fadeIn ${sec(weekDur)} ${ease} both var(--d, 0s); }
+    .${rootClass} .legend { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(legendDelay)}; }
+    .${rootClass} .rhythm-heading { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
+    .${rootClass} .baseline { animation: ${prefix}-fadeIn ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
+    .${rootClass} .hour-bar {
       transform-box: view-box;
       transform-origin: 0 ${chartBase}px;
-      animation: gh-ac-growY ${sec(hourDur)} ${ease} both var(--d, 0s);
+      animation: ${prefix}-growY ${sec(hourDur)} ${ease} both var(--d, 0s);
     }
-    .gh-activity .hour-axis { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(axisDelay)}; }
-    .gh-activity .summary { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(summaryDelay)}; }
+    .${rootClass} .hour-axis { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(axisDelay)}; }
+    .${rootClass} .summary { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(summaryDelay)}; }
 
-    @keyframes gh-ac-draw {
-      from { stroke-dasharray: ${frameDash}; stroke-dashoffset: ${frameDash}; }
-      to { stroke-dasharray: ${frameDash}; stroke-dashoffset: 0; }
-    }
-    @keyframes gh-ac-fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
-    }
-    @keyframes gh-ac-fadeIn {
+${shell.keyframes}
+    @keyframes ${prefix}-fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
     }
-    @keyframes gh-ac-growY {
+    @keyframes ${prefix}-growY {
       from { transform: scaleY(0); }
       to { transform: scaleY(1); }
     }
 
-    /* インライン展開されたときにホスト側のアニメーションまで止めないよう、
-       打ち消しはカードの内側に限定する。セレクタとキーフレーム名にカード名を
-       付けているのも、2 枚を同じ文書に展開したときに食い合わないため。 */
-    @media (prefers-reduced-motion: reduce) {
-      .gh-activity * { animation: none !important; }
-    }
+${shell.reducedMotion}
   </style>
   <defs>${cellDefs}</defs>
-  <rect class="frame" x="${frameInset}" y="${frameInset}" width="${frameW}" height="${frameH}" rx="${cardR}" fill="#ffffff" stroke="#d0d7de"/>
+  ${shell.rect}
   <text x="24" y="42" class="title">${esc(title)}</text>
 
   <g class="cal-heading">
     <text x="24" y="72" class="section">Contributions (past year)</text>
-    <text x="396" y="72" text-anchor="end" class="value">${fmt(calendar.totalContributions)}</text>
+    <text x="${contentRight}" y="72" text-anchor="end" class="value">${fmt(calendar.totalContributions)}</text>
   </g>
   <g class="months">${monthLabels}</g>
   ${weeksSvg}
@@ -332,7 +335,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${
 
   <g class="rhythm-heading">
     <text x="24" y="180" class="section">Daily rhythm</text>
-    <text x="396" y="180" text-anchor="end" class="value">${esc(rhythmLabel)}</text>
+    <text x="${contentRight}" y="180" text-anchor="end" class="value">${esc(rhythmLabel)}</text>
   </g>
   <line class="baseline" x1="${chartX}" y1="${chartBase + 0.5}" x2="${chartX + chartW}" y2="${chartBase + 0.5}" stroke="#eaeef2"/>
   ${hourBars}

@@ -14,10 +14,10 @@
 // カード全体がそろって追従する。
 
 import {
+  cardShell,
   ease,
   esc,
   fmt,
-  framePerimeter,
   graphql,
   readEnv,
   sec,
@@ -85,14 +85,12 @@ const topLangs = [...langCounts.entries()]
   .slice(0, 3);
 const langTotal = topLangs.reduce((sum, [, v]) => sum + v.count, 0);
 
-// カード寸法。枠線の rect は線幅の半分だけ内側に寄せて描く。
+// カードの外枠と共通キーフレーム。セレクタとキーフレーム名の接頭辞もここで決まる。
+const rootClass = "gh-stats";
+const prefix = "gh-st";
 const cardW = 420;
 const cardH = 250;
-const cardR = 12;
-const frameInset = 0.5;
-const frameW = cardW - 2 * frameInset;
-const frameH = cardH - 2 * frameInset;
-const frameDash = framePerimeter(frameW, frameH, cardR);
+const shell = cardShell({ rootClass, prefix, width: cardW, height: cardH });
 
 // 言語バーの位置とサイズ。セグメント・クリップ・下地で共有する。
 const barX = 24;
@@ -208,65 +206,53 @@ const legend = topLangs
 
 const title = `${user.name ?? login}'s GitHub Stats`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="gh-stats" role="img" aria-label="GitHub stats for ${esc(login)}">
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="${rootClass}" role="img" aria-label="GitHub stats for ${esc(login)}">
   <style>
-    .gh-stats .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .gh-stats .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .gh-stats .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-    .gh-stats .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .gh-stats .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .${rootClass} .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
+    .${rootClass} .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .${rootClass} .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .${rootClass} .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .${rootClass} .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
 
-    .gh-stats .frame { animation: gh-st-draw ${sec(frameDur)} ease-out both; }
-    .gh-stats .title { animation: gh-st-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
-    .gh-stats .row { animation: gh-st-rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
-    .gh-stats .section, .gh-stats .track { animation: gh-st-fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
-    .gh-stats .reveal {
+${shell.css}
+    .${rootClass} .title { animation: ${prefix}-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
+    .${rootClass} .row { animation: ${prefix}-rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
+    .${rootClass} .section, .${rootClass} .track { animation: ${prefix}-fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
+    .${rootClass} .reveal {
       transform-box: view-box;
       transform-origin: ${barX}px ${barY + barRadius}px;
-      animation: gh-st-grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
+      animation: ${prefix}-grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
     }
-    .gh-stats .legend-item { animation: gh-st-fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
+    .${rootClass} .legend-item { animation: ${prefix}-fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
 
     /* 途中値は既定で隠して自分の区間だけ見せ、最終値は既定で表示して出番まで
        伏せる。どちらも fill-mode を既定の none のままにするのが前提で、both を
        足すと最終値が消えたまま固定される。アニメーションが効かない環境では
        どちらも既定値のまま、つまり完成状態が残る。 */
-    .gh-stats .tick {
+    .${rootClass} .tick {
       opacity: 0;
-      animation-name: gh-st-show;
+      animation-name: ${prefix}-show;
       animation-timing-function: linear;
       animation-duration: var(--dur, 0s);
       animation-delay: var(--dly, 0s);
     }
-    .gh-stats .tick-last { opacity: 1; animation-name: gh-st-hide; }
+    .${rootClass} .tick-last { opacity: 1; animation-name: ${prefix}-hide; }
 
-    @keyframes gh-st-draw {
-      from { stroke-dasharray: ${frameDash}; stroke-dashoffset: ${frameDash}; }
-      to { stroke-dasharray: ${frameDash}; stroke-dashoffset: 0; }
-    }
-    @keyframes gh-st-fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
-    }
-    @keyframes gh-st-rowIn {
+${shell.keyframes}
+    @keyframes ${prefix}-rowIn {
       from { opacity: 0; transform: translateX(-10px); }
       to { opacity: 1; transform: none; }
     }
-    @keyframes gh-st-grow {
+    @keyframes ${prefix}-grow {
       from { transform: scaleX(0); }
       to { transform: scaleX(1); }
     }
-    @keyframes gh-st-show { from, to { opacity: 1; } }
-    @keyframes gh-st-hide { from, to { opacity: 0; } }
+    @keyframes ${prefix}-show { from, to { opacity: 1; } }
+    @keyframes ${prefix}-hide { from, to { opacity: 0; } }
 
-    /* インライン展開されたときにホスト側のアニメーションまで止めないよう、
-       打ち消しはカードの内側に限定する。セレクタとキーフレーム名にカード名を
-       付けているのも、2 枚を同じ文書に展開したときに食い合わないため。 */
-    @media (prefers-reduced-motion: reduce) {
-      .gh-stats * { animation: none !important; }
-    }
+${shell.reducedMotion}
   </style>
-  <rect class="frame" x="${frameInset}" y="${frameInset}" width="${frameW}" height="${frameH}" rx="${cardR}" fill="#ffffff" stroke="#d0d7de"/>
+  ${shell.rect}
   <text x="24" y="42" class="title">${esc(title)}</text>
   ${rowsSvg}
   <text x="24" y="202" class="section">Top Languages</text>

@@ -1,56 +1,54 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" viewBox="0 0 420 250" class="gh-stats" role="img" aria-label="GitHub stats for okrago10">
   <style>
-    .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-    .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .gh-stats .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
+    .gh-stats .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .gh-stats .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .gh-stats .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .gh-stats .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
 
-    .frame { animation: draw 0.7s ease-out both; }
-    .title { animation: fadeUp 0.4s cubic-bezier(.2,.7,.3,1) both 0.15s; }
-    .row { animation: rowIn 0.35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
-    .section, .track { animation: fadeUp 0.4s cubic-bezier(.2,.7,.3,1) both 0.58s; }
-    .reveal {
+    .gh-stats .frame { animation: gh-st-draw 0.7s ease-out both; }
+    .gh-stats .title { animation: gh-st-fadeUp 0.4s cubic-bezier(.2,.7,.3,1) both 0.15s; }
+    .gh-stats .row { animation: gh-st-rowIn 0.35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
+    .gh-stats .section, .gh-stats .track { animation: gh-st-fadeUp 0.4s cubic-bezier(.2,.7,.3,1) both 0.58s; }
+    .gh-stats .reveal {
       transform-box: view-box;
       transform-origin: 24px 216px;
-      animation: grow 0.55s cubic-bezier(.2,.7,.3,1) both 0.73s;
+      animation: gh-st-grow 0.55s cubic-bezier(.2,.7,.3,1) both 0.73s;
     }
-    .legend-item { animation: fadeUp 0.35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
+    .gh-stats .legend-item { animation: gh-st-fadeUp 0.35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
 
     /* 途中値は既定で隠して自分の区間だけ見せ、最終値は既定で表示して出番まで
        伏せる。どちらも fill-mode を既定の none のままにするのが前提で、both を
        足すと最終値が消えたまま固定される。アニメーションが効かない環境では
        どちらも既定値のまま、つまり完成状態が残る。 */
-    .tick {
+    .gh-stats .tick {
       opacity: 0;
-      animation-name: show;
+      animation-name: gh-st-show;
       animation-timing-function: linear;
       animation-duration: var(--dur, 0s);
       animation-delay: var(--dly, 0s);
     }
-    .tick-last { opacity: 1; animation-name: hide; }
+    .gh-stats .tick-last { opacity: 1; animation-name: gh-st-hide; }
 
-    @keyframes draw {
+    @keyframes gh-st-draw {
       from { stroke-dasharray: 1316; stroke-dashoffset: 1316; }
       to { stroke-dasharray: 1316; stroke-dashoffset: 0; }
     }
-    @keyframes fadeUp {
+    @keyframes gh-st-fadeUp {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: none; }
     }
-    @keyframes rowIn {
+    @keyframes gh-st-rowIn {
       from { opacity: 0; transform: translateX(-10px); }
       to { opacity: 1; transform: none; }
     }
-    @keyframes grow {
+    @keyframes gh-st-grow {
       from { transform: scaleX(0); }
       to { transform: scaleX(1); }
     }
-    @keyframes show { from, to { opacity: 1; } }
-    @keyframes hide { from, to { opacity: 0; } }
+    @keyframes gh-st-show { from, to { opacity: 1; } }
+    @keyframes gh-st-hide { from, to { opacity: 0; } }
 
-    /* インライン展開されたときにホスト側のアニメーションまで止めないよう、
-       打ち消しはカードの内側に限定する。 */
     @media (prefers-reduced-motion: reduce) {
       .gh-stats * { animation: none !important; }
     }

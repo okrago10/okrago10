@@ -13,21 +13,18 @@
 // 進行のタイミングはすべて下の定数から CSS に埋め込むので、定数を変えれば
 // カード全体がそろって追従する。
 
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import {
+  cardShell,
+  ease,
+  esc,
+  fmt,
+  graphql,
+  readEnv,
+  sec,
+  writeSvg,
+} from "./lib/card.mjs";
 
-const token = process.env.GITHUB_TOKEN;
-const login = process.env.GITHUB_LOGIN;
-const outPath = process.env.OUT_PATH || "assets/stats.svg";
-
-if (!token) {
-  console.error("GITHUB_TOKEN is not set");
-  process.exit(1);
-}
-if (!login) {
-  console.error("GITHUB_LOGIN is not set");
-  process.exit(1);
-}
+const { token, login, outPath } = readEnv("assets/stats.svg");
 
 const query = /* GraphQL */ `
   query ($login: String!) {
@@ -64,28 +61,7 @@ const query = /* GraphQL */ `
   }
 `;
 
-const res = await fetch("https://api.github.com/graphql", {
-  method: "POST",
-  headers: {
-    authorization: `bearer ${token}`,
-    "content-type": "application/json",
-    "user-agent": `${login}-profile-stats`,
-  },
-  body: JSON.stringify({ query, variables: { login } }),
-});
-
-if (!res.ok) {
-  console.error(`GitHub API error: ${res.status} ${await res.text()}`);
-  process.exit(1);
-}
-
-const body = await res.json();
-if (body.errors?.length) {
-  console.error(`GraphQL errors: ${JSON.stringify(body.errors, null, 2)}`);
-  process.exit(1);
-}
-
-const user = body.data.user;
+const { user } = await graphql(token, login, query);
 const repos = user.repositories.nodes;
 
 const stars = repos.reduce((sum, repo) => sum + repo.stargazerCount, 0);
@@ -109,26 +85,12 @@ const topLangs = [...langCounts.entries()]
   .slice(0, 3);
 const langTotal = topLangs.reduce((sum, [, v]) => sum + v.count, 0);
 
-const fmt = (n) => n.toLocaleString("en-US");
-const esc = (s) =>
-  s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
-  );
-
-// カード寸法。枠線の rect は線幅の半分だけ内側に寄せて描く。
+// カードの外枠と共通キーフレーム。セレクタとキーフレーム名の接頭辞もここで決まる。
+const rootClass = "gh-stats";
+const prefix = "gh-st";
 const cardW = 420;
 const cardH = 250;
-const cardR = 12;
-const frameInset = 0.5;
-const frameW = cardW - 2 * frameInset;
-const frameH = cardH - 2 * frameInset;
-// 枠線を一周描くためのダッシュ長。角丸を含む外周を切り上げて使う。
-// 実際の外周より短いと、アニメーション後も破線の隙間が残ってしまう。
-const framePerimeter = Math.ceil(
-  2 * (frameW - 2 * cardR) + 2 * (frameH - 2 * cardR) + 2 * Math.PI * cardR,
-);
+const shell = cardShell({ rootClass, prefix, width: cardW, height: cardH });
 
 // 言語バーの位置とサイズ。セグメント・クリップ・下地で共有する。
 const barX = 24;
@@ -140,9 +102,6 @@ const barRadius = barHeight / 2;
 // インライン展開されたときに他の SVG とぶつからないよう ID に接頭辞を付ける。
 const clipBar = "gh-stats-bar";
 const clipReveal = "gh-stats-reveal";
-
-const ease = "cubic-bezier(.2,.7,.3,1)";
-const sec = (n) => `${+n.toFixed(2)}s`;
 
 // カウントアップで通過する途中値の割合。最終値は value から直接描くので
 // 1 は含めない。増減しても CSS 側の変更は要らない。
@@ -247,64 +206,53 @@ const legend = topLangs
 
 const title = `${user.name ?? login}'s GitHub Stats`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="gh-stats" role="img" aria-label="GitHub stats for ${esc(login)}">
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="${rootClass}" role="img" aria-label="GitHub stats for ${esc(login)}">
   <style>
-    .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-    .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .${rootClass} .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
+    .${rootClass} .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .${rootClass} .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .${rootClass} .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .${rootClass} .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
 
-    .frame { animation: draw ${sec(frameDur)} ease-out both; }
-    .title { animation: fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
-    .row { animation: rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
-    .section, .track { animation: fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
-    .reveal {
+${shell.css}
+    .${rootClass} .title { animation: ${prefix}-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
+    .${rootClass} .row { animation: ${prefix}-rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
+    .${rootClass} .section, .${rootClass} .track { animation: ${prefix}-fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
+    .${rootClass} .reveal {
       transform-box: view-box;
       transform-origin: ${barX}px ${barY + barRadius}px;
-      animation: grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
+      animation: ${prefix}-grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
     }
-    .legend-item { animation: fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
+    .${rootClass} .legend-item { animation: ${prefix}-fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
 
     /* 途中値は既定で隠して自分の区間だけ見せ、最終値は既定で表示して出番まで
        伏せる。どちらも fill-mode を既定の none のままにするのが前提で、both を
        足すと最終値が消えたまま固定される。アニメーションが効かない環境では
        どちらも既定値のまま、つまり完成状態が残る。 */
-    .tick {
+    .${rootClass} .tick {
       opacity: 0;
-      animation-name: show;
+      animation-name: ${prefix}-show;
       animation-timing-function: linear;
       animation-duration: var(--dur, 0s);
       animation-delay: var(--dly, 0s);
     }
-    .tick-last { opacity: 1; animation-name: hide; }
+    .${rootClass} .tick-last { opacity: 1; animation-name: ${prefix}-hide; }
 
-    @keyframes draw {
-      from { stroke-dasharray: ${framePerimeter}; stroke-dashoffset: ${framePerimeter}; }
-      to { stroke-dasharray: ${framePerimeter}; stroke-dashoffset: 0; }
-    }
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to { opacity: 1; transform: none; }
-    }
-    @keyframes rowIn {
+${shell.keyframes}
+    @keyframes ${prefix}-rowIn {
       from { opacity: 0; transform: translateX(-10px); }
       to { opacity: 1; transform: none; }
     }
-    @keyframes grow {
+    @keyframes ${prefix}-grow {
       from { transform: scaleX(0); }
       to { transform: scaleX(1); }
     }
-    @keyframes show { from, to { opacity: 1; } }
-    @keyframes hide { from, to { opacity: 0; } }
+    @keyframes ${prefix}-show { from, to { opacity: 1; } }
+    @keyframes ${prefix}-hide { from, to { opacity: 0; } }
 
-    /* インライン展開されたときにホスト側のアニメーションまで止めないよう、
-       打ち消しはカードの内側に限定する。 */
-    @media (prefers-reduced-motion: reduce) {
-      .gh-stats * { animation: none !important; }
-    }
+${shell.reducedMotion}
   </style>
-  <rect class="frame" x="${frameInset}" y="${frameInset}" width="${frameW}" height="${frameH}" rx="${cardR}" fill="#ffffff" stroke="#d0d7de"/>
+  ${shell.rect}
   <text x="24" y="42" class="title">${esc(title)}</text>
   ${rowsSvg}
   <text x="24" y="202" class="section">Top Languages</text>
@@ -316,6 +264,4 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${
 </svg>
 `;
 
-await mkdir(dirname(outPath), { recursive: true });
-await writeFile(outPath, svg);
-console.log(`Wrote ${outPath}`);
+await writeSvg(outPath, svg);

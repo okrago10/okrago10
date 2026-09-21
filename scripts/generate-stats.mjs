@@ -210,57 +210,58 @@ const title = `${user.name ?? login}'s GitHub Stats`;
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="gh-stats" role="img" aria-label="GitHub stats for ${esc(login)}">
   <style>
-    .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-    .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .gh-stats .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
+    .gh-stats .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .gh-stats .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .gh-stats .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .gh-stats .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
 
-    .frame { animation: draw ${sec(frameDur)} ease-out both; }
-    .title { animation: fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
-    .row { animation: rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
-    .section, .track { animation: fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
-    .reveal {
+    .gh-stats .frame { animation: gh-st-draw ${sec(frameDur)} ease-out both; }
+    .gh-stats .title { animation: gh-st-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
+    .gh-stats .row { animation: gh-st-rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
+    .gh-stats .section, .gh-stats .track { animation: gh-st-fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
+    .gh-stats .reveal {
       transform-box: view-box;
       transform-origin: ${barX}px ${barY + barRadius}px;
-      animation: grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
+      animation: gh-st-grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
     }
-    .legend-item { animation: fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
+    .gh-stats .legend-item { animation: gh-st-fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
 
     /* 途中値は既定で隠して自分の区間だけ見せ、最終値は既定で表示して出番まで
        伏せる。どちらも fill-mode を既定の none のままにするのが前提で、both を
        足すと最終値が消えたまま固定される。アニメーションが効かない環境では
        どちらも既定値のまま、つまり完成状態が残る。 */
-    .tick {
+    .gh-stats .tick {
       opacity: 0;
-      animation-name: show;
+      animation-name: gh-st-show;
       animation-timing-function: linear;
       animation-duration: var(--dur, 0s);
       animation-delay: var(--dly, 0s);
     }
-    .tick-last { opacity: 1; animation-name: hide; }
+    .gh-stats .tick-last { opacity: 1; animation-name: gh-st-hide; }
 
-    @keyframes draw {
+    @keyframes gh-st-draw {
       from { stroke-dasharray: ${frameDash}; stroke-dashoffset: ${frameDash}; }
       to { stroke-dasharray: ${frameDash}; stroke-dashoffset: 0; }
     }
-    @keyframes fadeUp {
+    @keyframes gh-st-fadeUp {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: none; }
     }
-    @keyframes rowIn {
+    @keyframes gh-st-rowIn {
       from { opacity: 0; transform: translateX(-10px); }
       to { opacity: 1; transform: none; }
     }
-    @keyframes grow {
+    @keyframes gh-st-grow {
       from { transform: scaleX(0); }
       to { transform: scaleX(1); }
     }
-    @keyframes show { from, to { opacity: 1; } }
-    @keyframes hide { from, to { opacity: 0; } }
+    @keyframes gh-st-show { from, to { opacity: 1; } }
+    @keyframes gh-st-hide { from, to { opacity: 0; } }
 
     /* インライン展開されたときにホスト側のアニメーションまで止めないよう、
-       打ち消しはカードの内側に限定する。 */
+       打ち消しはカードの内側に限定する。セレクタとキーフレーム名にカード名を
+       付けているのも、2 枚を同じ文書に展開したときに食い合わないため。 */
     @media (prefers-reduced-motion: reduce) {
       .gh-stats * { animation: none !important; }
     }

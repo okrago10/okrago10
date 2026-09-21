@@ -4,6 +4,7 @@
 //   GITHUB_TOKEN  - GitHub API トークン (read:user 相当のスコープ)
 //   GITHUB_LOGIN  - 対象ユーザーのログイン名
 //   OUT_PATH      - 出力先 SVG パス (省略時: assets/activity.svg)
+//   TZ_OFFSET_HOURS - UTC 表記のコミットをどの地方時として読むか (省略時: 9)
 // 出力にタイムスタンプを含めないため、活動が変わらない日はファイルも変化しない。
 //
 // アニメーションの作りは stats カードと同じ。完成状態を CSS の既定値として持ち、
@@ -26,7 +27,7 @@ const { token, login, outPath } = readEnv("assets/activity.svg");
 
 // コミット日時が UTC (末尾 Z) で記録されている場合に、どの地方時として
 // 読むか。オフセット付きで記録されている場合はそちらを優先する。
-const fallbackTzOffsetHours = 9;
+const fallbackTzOffsetHours = Number(process.env.TZ_OFFSET_HOURS ?? 9);
 // コミット検索は 1 ページ 100 件。多くても直近 500 件あれば分布は安定する。
 const maxCommitPages = 5;
 
@@ -40,8 +41,6 @@ const query = /* GraphQL */ `
           weeks {
             firstDay
             contributionDays {
-              contributionCount
-              date
               weekday
               contributionLevel
             }
@@ -144,7 +143,6 @@ const gridY = 96;
 const cell = 5;
 const cellGap = 2;
 const cellPitch = cell + cellGap;
-const gridBottom = gridY + 7 * cellPitch - cellGap;
 const monthY = 88;
 const legendY = 158;
 
@@ -159,7 +157,7 @@ const hourBarW = 11;
 const axisY = 252;
 const summaryY = 274;
 
-// GitHub のカレンダーと同じ 5 段階の緑。色はクラスで当てる。
+// GitHub のカレンダーと同じ 5 段階の緑。
 const levels = [
   ["NONE", "#ebedf0"],
   ["FIRST_QUARTILE", "#9be9a8"],
@@ -167,11 +165,19 @@ const levels = [
   ["THIRD_QUARTILE", "#30a14e"],
   ["FOURTH_QUARTILE", "#216e39"],
 ];
-const levelClass = Object.fromEntries(levels.map(([name], i) => [name, `q${i}`]));
 
-// セルは 1 年分で 370 個近くになる。同じ形を defs に 1 つ置いて <use> で
-// 位置だけ与え、色はクラスに逃がすことで出力を半分近くに抑える。
-const cellId = "gh-ac";
+// セルは 1 年分で 370 個近くになる。段階ごとに色つきの矩形を defs へ置き、
+// <use> は参照と y だけを持たせて出力を抑える。色を CSS ではなく参照先の
+// 属性に持たせているので、スタイルを解釈しないレンダラでも緑のまま出る。
+const cellRef = Object.fromEntries(
+  levels.map(([name], i) => [name, `gh-ac-q${i}`]),
+);
+const cellDefs = levels
+  .map(
+    ([name, color]) =>
+      `<rect id="${cellRef[name]}" width="${cell}" height="${cell}" rx="1" fill="${color}"/>`,
+  )
+  .join("");
 
 // アニメーションのタイミング (秒)。後続の要素は前の要素の完了時刻から導く。
 const frameDur = 0.7;
@@ -198,8 +204,8 @@ const weeksSvg = weeks
     const cells = week.contributionDays
       .map((day) => {
         const y = gridY + day.weekday * cellPitch;
-        const cls = levelClass[day.contributionLevel] ?? "q0";
-        return `<use href="#${cellId}" class="${cls}" y="${y}"/>`;
+        const ref = cellRef[day.contributionLevel] ?? cellRef.NONE;
+        return `<use href="#${ref}" y="${y}"/>`;
       })
       .join("");
     return (
@@ -215,8 +221,13 @@ let lastLabelWeek = -99;
 const monthLabels = weeks
   .map((week, i) => {
     const month = Number(week.firstDay.slice(5, 7)) - 1;
-    if (month === previousMonth || i - lastLabelWeek < 3) return "";
+    const changed = month !== previousMonth;
+    // 月が変わったことは先に記録する。ここで記録しないと、間引いたラベルが
+    // 翌週にずれて描かれてしまう。
     previousMonth = month;
+    // 先頭の列は月の途中から始まることがあるので、その月のラベルは
+    // 次に月が変わるまで待つ。前のラベルに近すぎる場合も詰まるので出さない。
+    if (i === 0 || !changed || i - lastLabelWeek < 3) return "";
     lastLabelWeek = i;
     return `<text x="${gridX + i * cellPitch}" y="${monthY}" class="axis">${monthNames[month]}</text>`;
   })
@@ -249,7 +260,7 @@ const legendCellsX = 396 - 32 - legendCellsWidth;
 const legendCells = levels
   .map(
     ([name], i) =>
-      `<use href="#${cellId}" class="${levelClass[name]}" x="${legendCellsX + i * cellPitch}" y="${legendY - cell}"/>`,
+      `<use href="#${cellRef[name]}" x="${legendCellsX + i * cellPitch}" y="${legendY - cell}"/>`,
   )
   .join("");
 
@@ -257,53 +268,53 @@ const title = `${user.name ?? login}'s GitHub Activity`;
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="gh-activity" role="img" aria-label="GitHub activity for ${esc(login)}: ${fmt(calendar.totalContributions)} contributions in the past year">
   <style>
-    .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .value { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-    .axis { font: 400 9px 'Segoe UI', Ubuntu, sans-serif; fill: #8b949e; }
-    .summary { font: 400 11px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-${levels.map(([name], i) => `    .gh-activity .q${i} { fill: ${levels[i][1]}; }`).join("\n")}
+    .gh-activity .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
+    .gh-activity .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+    .gh-activity .value { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+    .gh-activity .axis { font: 400 9px 'Segoe UI', Ubuntu, sans-serif; fill: #8b949e; }
+    .gh-activity .summary { font: 400 11px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
 
-    .frame { animation: draw ${sec(frameDur)} ease-out both; }
-    .title { animation: fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
-    .cal-heading { animation: fadeUp ${sec(headingDur)} ${ease} both ${sec(calHeadingDelay)}; }
-    .months { animation: fadeUp ${sec(headingDur)} ${ease} both ${sec(monthDelay)}; }
-    .week { animation: fadeIn ${sec(weekDur)} ${ease} both var(--d, 0s); }
-    .legend { animation: fadeUp ${sec(headingDur)} ${ease} both ${sec(legendDelay)}; }
-    .rhythm-heading { animation: fadeUp ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
-    .hour-bar {
+    .gh-activity .frame { animation: gh-ac-draw ${sec(frameDur)} ease-out both; }
+    .gh-activity .title { animation: gh-ac-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
+    .gh-activity .cal-heading { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(calHeadingDelay)}; }
+    .gh-activity .months { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(monthDelay)}; }
+    .gh-activity .week { animation: gh-ac-fadeIn ${sec(weekDur)} ${ease} both var(--d, 0s); }
+    .gh-activity .legend { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(legendDelay)}; }
+    .gh-activity .rhythm-heading { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
+    .gh-activity .baseline { animation: gh-ac-fadeIn ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
+    .gh-activity .hour-bar {
       transform-box: view-box;
       transform-origin: 0 ${chartBase}px;
-      animation: growY ${sec(hourDur)} ${ease} both var(--d, 0s);
+      animation: gh-ac-growY ${sec(hourDur)} ${ease} both var(--d, 0s);
     }
-    .baseline { animation: fadeIn ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
-    .hour-axis { animation: fadeUp ${sec(headingDur)} ${ease} both ${sec(axisDelay)}; }
-    .summary { animation: fadeUp ${sec(headingDur)} ${ease} both ${sec(summaryDelay)}; }
+    .gh-activity .hour-axis { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(axisDelay)}; }
+    .gh-activity .summary { animation: gh-ac-fadeUp ${sec(headingDur)} ${ease} both ${sec(summaryDelay)}; }
 
-    @keyframes draw {
+    @keyframes gh-ac-draw {
       from { stroke-dasharray: ${frameDash}; stroke-dashoffset: ${frameDash}; }
       to { stroke-dasharray: ${frameDash}; stroke-dashoffset: 0; }
     }
-    @keyframes fadeUp {
+    @keyframes gh-ac-fadeUp {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: none; }
     }
-    @keyframes fadeIn {
+    @keyframes gh-ac-fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
     }
-    @keyframes growY {
+    @keyframes gh-ac-growY {
       from { transform: scaleY(0); }
       to { transform: scaleY(1); }
     }
 
     /* インライン展開されたときにホスト側のアニメーションまで止めないよう、
-       打ち消しはカードの内側に限定する。 */
+       打ち消しはカードの内側に限定する。セレクタとキーフレーム名にカード名を
+       付けているのも、2 枚を同じ文書に展開したときに食い合わないため。 */
     @media (prefers-reduced-motion: reduce) {
       .gh-activity * { animation: none !important; }
     }
   </style>
-  <defs><rect id="${cellId}" width="${cell}" height="${cell}" rx="1"/></defs>
+  <defs>${cellDefs}</defs>
   <rect class="frame" x="${frameInset}" y="${frameInset}" width="${frameW}" height="${frameH}" rx="${cardR}" fill="#ffffff" stroke="#d0d7de"/>
   <text x="24" y="42" class="title">${esc(title)}</text>
 

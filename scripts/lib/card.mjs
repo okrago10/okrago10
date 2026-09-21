@@ -96,6 +96,11 @@ export async function searchCommits(token, login, q, maxPages) {
     }
 
     const body = await res.json();
+    // 200 でも items を持たない応答 (レート制限の警告など) が返ることがある。
+    if (!Array.isArray(body.items)) {
+      console.warn(`commit search returned no items at page ${page}`);
+      break;
+    }
     items.push(...body.items);
     if (body.items.length < searchPageSize) break;
   }

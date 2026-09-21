@@ -5,11 +5,13 @@
 //   OUT_PATH      - 出力先 SVG パス (省略時: assets/stats.svg)
 // 出力にタイムスタンプを含めないため、統計が変わらない日はファイルも変化しない。
 //
-// カードは表示時に一度だけ再生されるアニメーションを持つ (全体で約 1.7 秒)。
+// カードは表示時に一度だけ再生されるアニメーションを持つ (全体で約 1.8 秒)。
 // すべての要素は完成状態を CSS の既定値として持ち、アニメーション側が開始状態を
 // 作る。そのため CSS アニメーションを解釈しないレンダラでは完成状態がそのまま
 // 出る。ただしアニメーションを解釈するレンダラが t=0 で静止画にした場合は途中
 // 状態が写る。prefers-reduced-motion: reduce では全アニメーションを止める。
+// 進行のタイミングはすべて下の定数から CSS に埋め込むので、定数を変えれば
+// カード全体がそろって追従する。
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -115,16 +117,17 @@ const esc = (s) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
   );
 
-// カード寸法。枠線の rect は 0.5 ずらして描くので幅・高さは 1 小さい。
+// カード寸法。枠線の rect は線幅の半分だけ内側に寄せて描く。
 const cardW = 420;
 const cardH = 250;
 const cardR = 12;
+const frameInset = 0.5;
+const frameW = cardW - 2 * frameInset;
+const frameH = cardH - 2 * frameInset;
 // 枠線を一周描くためのダッシュ長。角丸を含む外周を切り上げて使う。
 // 実際の外周より短いと、アニメーション後も破線の隙間が残ってしまう。
 const framePerimeter = Math.ceil(
-  2 * (cardW - 1 - 2 * cardR) +
-    2 * (cardH - 1 - 2 * cardR) +
-    2 * Math.PI * cardR,
+  2 * (frameW - 2 * cardR) + 2 * (frameH - 2 * cardR) + 2 * Math.PI * cardR,
 );
 
 // 言語バーの位置とサイズ。セグメント・クリップ・下地で共有する。
@@ -132,17 +135,18 @@ const barX = 24;
 const barY = 212;
 const barWidth = 372;
 const barHeight = 8;
+const barRadius = barHeight / 2;
 
-// アニメーションのタイミング (秒)。
-const rowBase = 0.3; // 1 行目がスライドインを始める時刻
-const rowGap = 0.07; // 行ごとの遅延差
-const countLag = 0.1; // スライドイン開始からカウントアップ開始までの間
-const countDur = 0.5; // カウントアップ全体の長さ
-const legendBase = 1.2; // 凡例 1 件目が現れる時刻
-const legendGap = 0.08;
+// インライン展開されたときに他の SVG とぶつからないよう ID に接頭辞を付ける。
+const clipBar = "gh-stats-bar";
+const clipReveal = "gh-stats-reveal";
 
-// カウントアップ演出で通過する値の割合。末尾に向かって減速する。
-const STEPS = [0, 0.35, 0.62, 0.81, 0.93, 1];
+const ease = "cubic-bezier(.2,.7,.3,1)";
+const sec = (n) => `${+n.toFixed(2)}s`;
+
+// カウントアップで通過する途中値の割合。最終値は value から直接描くので
+// 1 は含めない。増減しても CSS 側の変更は要らない。
+const STEPS = [0, 0.35, 0.62, 0.81, 0.93];
 
 const rows = [
   ["Total Stars", stars],
@@ -152,6 +156,24 @@ const rows = [
   ["Followers", user.followers.totalCount],
 ];
 
+// アニメーションのタイミング (秒)。後続の要素は前の要素の完了時刻から導く。
+const frameDur = 0.7; // 枠線を一周描く時間
+const titleDelay = 0.15;
+const titleDur = 0.4;
+const rowBase = 0.3; // 1 行目がスライドインを始める時刻
+const rowGap = 0.07; // 行ごとの遅延差
+const rowDur = 0.35;
+const countLag = 0.1; // スライドイン開始からカウントアップ開始までの間
+const countDur = 0.5; // カウントアップにかける時間 (行によらず一定)
+const lastRowDelay = rowBase + (rows.length - 1) * rowGap;
+const sectionDelay = lastRowDelay; // 見出しは最終行と同時に出す
+const sectionDur = 0.4;
+const barDelay = sectionDelay + 0.15;
+const barDur = 0.55;
+const legendBase = barDelay + barDur; // 凡例はバーが埋まってから出す
+const legendGap = 0.08;
+const legendDur = 0.35;
+
 // 各行は左からスライドインし、数値は途中値のテキストを重ねて順に切り替える
 // ことでカウントアップに見せる。表示区間は CSS 変数で要素ごとに渡すので、
 // STEPS を増減してもスタイルシート側の変更は要らない。
@@ -160,37 +182,36 @@ const rowsSvg = rows
     const y = 76 + i * 26;
     const rowDelay = rowBase + i * rowGap;
     const countStart = rowDelay + countLag;
+    const finalText = fmt(value);
 
-    // 表示が変わらない途中値は出さない。値が 0 の行なら最終値の 1 つだけになる。
-    const frames = [];
+    // 最終値と同じになる途中値や、表示が変わらない途中値は出さない。
+    // 値が 0 の行は途中値がなくなり、最終値だけを最初から見せる。
+    const mid = [];
     for (const t of STEPS) {
       const text = fmt(Math.round(value * t));
-      if (frames.at(-1) !== text) frames.push(text);
+      if (text !== finalText && mid.at(-1) !== text) mid.push(text);
     }
-    const segment = countDur / frames.length;
 
-    const ticks = frames
-      .map((text, k) => {
-        const isLast = k === frames.length - 1;
-        const start = countStart + k * segment;
-        // 最終値は既定で表示しておき、出番が来るまでを hide で伏せる。
-        // 途中値は既定で非表示にし、自分の区間だけ show で見せる。
-        const dur = isLast ? start : segment;
-        const delay = isLast ? 0 : start;
-        const cls = isLast ? "value tick tick-last" : "value tick";
-        // ルートの role="img" により子孫は本来読み上げられないが、それを
-        // 尊重しないテキスト抽出への保険として途中値には aria-hidden を付ける。
-        const hidden = isLast ? "" : ' aria-hidden="true"';
-        return (
-          `<text x="396" y="${y}" text-anchor="end" class="${cls}" ` +
-          `style="--dur:${dur.toFixed(2)}s;--dly:${delay.toFixed(2)}s"${hidden}>${text}</text>`
-        );
-      })
-      .join("");
+    // 区切りを先に 1/100 秒へ丸め、長さはその差から取る。それぞれを個別に
+    // 丸めると継ぎ目に隙間ができたり、2 つの数字が重なって描かれたりする。
+    const bound = (k) => +(countStart + (k * countDur) / mid.length).toFixed(2);
+    const tick = (text, cls, dur, delay, decorative) =>
+      `<text x="396" y="${y}" text-anchor="end" class="${cls}" ` +
+      `style="--dur:${sec(dur)};--dly:${sec(delay)}"` +
+      // ルートの role="img" により子孫は本来読み上げられないが、それを
+      // 尊重しないテキスト抽出への保険として途中値には aria-hidden を付ける。
+      `${decorative ? ' aria-hidden="true"' : ""}>${esc(text)}</text>`;
+
+    // 途中値は自分の区間だけ見せ、最終値は出番が来るまで伏せておく。
+    const ticks = mid.map((text, k) =>
+      tick(text, "value tick", bound(k + 1) - bound(k), bound(k), true),
+    );
+    const finalStart = mid.length ? bound(mid.length) : +countStart.toFixed(2);
+    ticks.push(tick(finalText, "value tick tick-last", finalStart, 0, false));
 
     return (
-      `<g class="row" style="--d:${rowDelay.toFixed(2)}s">` +
-      `<text x="24" y="${y}" class="label">${esc(label)}</text>${ticks}` +
+      `<g class="row" style="--d:${sec(rowDelay)}">` +
+      `<text x="24" y="${y}" class="label">${esc(label)}</text>${ticks.join("")}` +
       `</g>`
     );
   })
@@ -213,9 +234,9 @@ let legendX = 24;
 const legend = topLangs
   .map(([name, { count, color }], i) => {
     const pct = Math.round((count / langTotal) * 100);
-    const delay = (legendBase + i * legendGap).toFixed(2);
+    const delay = sec(legendBase + i * legendGap);
     const item =
-      `<g class="legend-item" style="--d:${delay}s">` +
+      `<g class="legend-item" style="--d:${delay}">` +
       `<circle cx="${legendX + 5}" cy="232" r="5" fill="${color}"/>` +
       `<text x="${legendX + 16}" y="236" class="legend">${esc(name)} ${pct}%</text>` +
       `</g>`;
@@ -226,7 +247,7 @@ const legend = topLangs
 
 const title = `${user.name ?? login}'s GitHub Stats`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" role="img" aria-label="GitHub stats for ${esc(login)}">
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="gh-stats" role="img" aria-label="GitHub stats for ${esc(login)}">
   <style>
     .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
     .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
@@ -234,19 +255,21 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${
     .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
     .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
 
-    .frame { animation: draw .7s ease-out both; }
-    .title { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both .15s; }
-    .row { animation: rowIn .35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
-    .section, .track { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both .75s; }
+    .frame { animation: draw ${sec(frameDur)} ease-out both; }
+    .title { animation: fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
+    .row { animation: rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
+    .section, .track { animation: fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
     .reveal {
       transform-box: view-box;
-      transform-origin: ${barX}px ${barY + barHeight / 2}px;
-      animation: grow .6s cubic-bezier(.2,.7,.3,1) both .85s;
+      transform-origin: ${barX}px ${barY + barRadius}px;
+      animation: grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
     }
-    .legend-item { animation: fadeUp .35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
+    .legend-item { animation: fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
 
-    /* 途中値は既定で隠し自分の区間だけ見せる。最終値はその逆で、
-       どちらもアニメーションが効かなければ完成状態のまま残る。 */
+    /* 途中値は既定で隠して自分の区間だけ見せ、最終値は既定で表示して出番まで
+       伏せる。どちらも fill-mode を既定の none のままにするのが前提で、both を
+       足すと最終値が消えたまま固定される。アニメーションが効かない環境では
+       どちらも既定値のまま、つまり完成状態が残る。 */
     .tick {
       opacity: 0;
       animation-name: show;
@@ -275,18 +298,20 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${
     @keyframes show { from, to { opacity: 1; } }
     @keyframes hide { from, to { opacity: 0; } }
 
+    /* インライン展開されたときにホスト側のアニメーションまで止めないよう、
+       打ち消しはカードの内側に限定する。 */
     @media (prefers-reduced-motion: reduce) {
-      * { animation: none !important; }
+      .gh-stats * { animation: none !important; }
     }
   </style>
-  <rect class="frame" x="0.5" y="0.5" width="${cardW - 1}" height="${cardH - 1}" rx="${cardR}" fill="#ffffff" stroke="#d0d7de"/>
+  <rect class="frame" x="${frameInset}" y="${frameInset}" width="${frameW}" height="${frameH}" rx="${cardR}" fill="#ffffff" stroke="#d0d7de"/>
   <text x="24" y="42" class="title">${esc(title)}</text>
   ${rowsSvg}
   <text x="24" y="202" class="section">Top Languages</text>
-  <clipPath id="bar"><rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barHeight / 2}"/></clipPath>
-  <clipPath id="reveal"><rect class="reveal" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}"/></clipPath>
-  <rect class="track" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barHeight / 2}" fill="#eaeef2"/>
-  <g clip-path="url(#bar)"><g clip-path="url(#reveal)">${segments}</g></g>
+  <clipPath id="${clipBar}"><rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barRadius}"/></clipPath>
+  <clipPath id="${clipReveal}"><rect class="reveal" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}"/></clipPath>
+  <rect class="track" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barRadius}" fill="#eaeef2"/>
+  <g clip-path="url(#${clipBar})"><g clip-path="url(#${clipReveal})">${segments}</g></g>
   ${legend}
 </svg>
 `;

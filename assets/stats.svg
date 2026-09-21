@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" viewBox="0 0 420 250" role="img" aria-label="GitHub stats for okrago10">
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" viewBox="0 0 420 250" class="gh-stats" role="img" aria-label="GitHub stats for okrago10">
   <style>
     .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
     .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
@@ -6,19 +6,21 @@
     .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
     .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
 
-    .frame { animation: draw .7s ease-out both; }
-    .title { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both .15s; }
-    .row { animation: rowIn .35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
-    .section, .track { animation: fadeUp .4s cubic-bezier(.2,.7,.3,1) both .75s; }
+    .frame { animation: draw 0.7s ease-out both; }
+    .title { animation: fadeUp 0.4s cubic-bezier(.2,.7,.3,1) both 0.15s; }
+    .row { animation: rowIn 0.35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
+    .section, .track { animation: fadeUp 0.4s cubic-bezier(.2,.7,.3,1) both 0.58s; }
     .reveal {
       transform-box: view-box;
       transform-origin: 24px 216px;
-      animation: grow .6s cubic-bezier(.2,.7,.3,1) both .85s;
+      animation: grow 0.55s cubic-bezier(.2,.7,.3,1) both 0.73s;
     }
-    .legend-item { animation: fadeUp .35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
+    .legend-item { animation: fadeUp 0.35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
 
-    /* 途中値は既定で隠し自分の区間だけ見せる。最終値はその逆で、
-       どちらもアニメーションが効かなければ完成状態のまま残る。 */
+    /* 途中値は既定で隠して自分の区間だけ見せ、最終値は既定で表示して出番まで
+       伏せる。どちらも fill-mode を既定の none のままにするのが前提で、both を
+       足すと最終値が消えたまま固定される。アニメーションが効かない環境では
+       どちらも既定値のまま、つまり完成状態が残る。 */
     .tick {
       opacity: 0;
       animation-name: show;
@@ -47,21 +49,23 @@
     @keyframes show { from, to { opacity: 1; } }
     @keyframes hide { from, to { opacity: 0; } }
 
+    /* インライン展開されたときにホスト側のアニメーションまで止めないよう、
+       打ち消しはカードの内側に限定する。 */
     @media (prefers-reduced-motion: reduce) {
-      * { animation: none !important; }
+      .gh-stats * { animation: none !important; }
     }
   </style>
   <rect class="frame" x="0.5" y="0.5" width="419" height="249" rx="12" fill="#ffffff" stroke="#d0d7de"/>
   <text x="24" y="42" class="title">okura&#39;s GitHub Stats</text>
-  <g class="row" style="--d:0.30s"><text x="24" y="76" class="label">Total Stars</text><text x="396" y="76" text-anchor="end" class="value tick tick-last" style="--dur:0.40s;--dly:0.00s">0</text></g>
-  <g class="row" style="--d:0.37s"><text x="24" y="102" class="label">Commits (past year)</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.47s" aria-hidden="true">0</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.55s" aria-hidden="true">82</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.64s" aria-hidden="true">146</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.72s" aria-hidden="true">190</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.80s" aria-hidden="true">219</text><text x="396" y="102" text-anchor="end" class="value tick tick-last" style="--dur:0.89s;--dly:0.00s">235</text></g>
-  <g class="row" style="--d:0.44s"><text x="24" y="128" class="label">Pull Requests</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.54s" aria-hidden="true">0</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.62s" aria-hidden="true">37</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.71s" aria-hidden="true">65</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.79s" aria-hidden="true">85</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.87s" aria-hidden="true">98</text><text x="396" y="128" text-anchor="end" class="value tick tick-last" style="--dur:0.96s;--dly:0.00s">105</text></g>
-  <g class="row" style="--d:0.51s"><text x="24" y="154" class="label">Issues</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.61s" aria-hidden="true">0</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.69s" aria-hidden="true">23</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.78s" aria-hidden="true">42</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.86s" aria-hidden="true">54</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.08s;--dly:0.94s" aria-hidden="true">62</text><text x="396" y="154" text-anchor="end" class="value tick tick-last" style="--dur:1.03s;--dly:0.00s">67</text></g>
-  <g class="row" style="--d:0.58s"><text x="24" y="180" class="label">Followers</text><text x="396" y="180" text-anchor="end" class="value tick tick-last" style="--dur:0.68s;--dly:0.00s">0</text></g>
+  <g class="row" style="--d:0.3s"><text x="24" y="76" class="label">Total Stars</text><text x="396" y="76" text-anchor="end" class="value tick tick-last" style="--dur:0.4s;--dly:0s">0</text></g>
+  <g class="row" style="--d:0.37s"><text x="24" y="102" class="label">Commits (past year)</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.47s" aria-hidden="true">0</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.57s" aria-hidden="true">82</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.67s" aria-hidden="true">146</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.77s" aria-hidden="true">190</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.87s" aria-hidden="true">219</text><text x="396" y="102" text-anchor="end" class="value tick tick-last" style="--dur:0.97s;--dly:0s">235</text></g>
+  <g class="row" style="--d:0.44s"><text x="24" y="128" class="label">Pull Requests</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.54s" aria-hidden="true">0</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.64s" aria-hidden="true">37</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.74s" aria-hidden="true">65</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.84s" aria-hidden="true">85</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.94s" aria-hidden="true">98</text><text x="396" y="128" text-anchor="end" class="value tick tick-last" style="--dur:1.04s;--dly:0s">105</text></g>
+  <g class="row" style="--d:0.51s"><text x="24" y="154" class="label">Issues</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.61s" aria-hidden="true">0</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.71s" aria-hidden="true">23</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.81s" aria-hidden="true">42</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.91s" aria-hidden="true">54</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:1.01s" aria-hidden="true">62</text><text x="396" y="154" text-anchor="end" class="value tick tick-last" style="--dur:1.11s;--dly:0s">67</text></g>
+  <g class="row" style="--d:0.58s"><text x="24" y="180" class="label">Followers</text><text x="396" y="180" text-anchor="end" class="value tick tick-last" style="--dur:0.68s;--dly:0s">0</text></g>
   <text x="24" y="202" class="section">Top Languages</text>
-  <clipPath id="bar"><rect x="24" y="212" width="372" height="8" rx="4"/></clipPath>
-  <clipPath id="reveal"><rect class="reveal" x="24" y="212" width="372" height="8"/></clipPath>
+  <clipPath id="gh-stats-bar"><rect x="24" y="212" width="372" height="8" rx="4"/></clipPath>
+  <clipPath id="gh-stats-reveal"><rect class="reveal" x="24" y="212" width="372" height="8"/></clipPath>
   <rect class="track" x="24" y="212" width="372" height="8" rx="4" fill="#eaeef2"/>
-  <g clip-path="url(#bar)"><g clip-path="url(#reveal)"><rect x="24" y="212" width="266" height="8" fill="#3178c6"/><rect x="290" y="212" width="53" height="8" fill="#f1e05a"/><rect x="343" y="212" width="53" height="8" fill="#dea584"/></g></g>
-  <g class="legend-item" style="--d:1.20s"><circle cx="29" cy="232" r="5" fill="#3178c6"/><text x="40" y="236" class="legend">TypeScript 71%</text></g><g class="legend-item" style="--d:1.28s"><circle cx="157" cy="232" r="5" fill="#f1e05a"/><text x="168" y="236" class="legend">JavaScript 14%</text></g><g class="legend-item" style="--d:1.36s"><circle cx="285" cy="232" r="5" fill="#dea584"/><text x="296" y="236" class="legend">Rust 14%</text></g>
+  <g clip-path="url(#gh-stats-bar)"><g clip-path="url(#gh-stats-reveal)"><rect x="24" y="212" width="266" height="8" fill="#3178c6"/><rect x="290" y="212" width="53" height="8" fill="#f1e05a"/><rect x="343" y="212" width="53" height="8" fill="#dea584"/></g></g>
+  <g class="legend-item" style="--d:1.28s"><circle cx="29" cy="232" r="5" fill="#3178c6"/><text x="40" y="236" class="legend">TypeScript 71%</text></g><g class="legend-item" style="--d:1.36s"><circle cx="157" cy="232" r="5" fill="#f1e05a"/><text x="168" y="236" class="legend">JavaScript 14%</text></g><g class="legend-item" style="--d:1.44s"><circle cx="285" cy="232" r="5" fill="#dea584"/><text x="296" y="236" class="legend">Rust 14%</text></g>
 </svg>

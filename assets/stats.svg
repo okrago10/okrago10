@@ -17,18 +17,18 @@
     }
     .gh-stats .legend-item { animation: gh-st-fadeUp 0.35s cubic-bezier(.2,.7,.3,1) both var(--d, 0s); }
 
-    /* 途中値は既定で隠して自分の区間だけ見せ、最終値は既定で表示して出番まで
-       伏せる。どちらも fill-mode を既定の none のままにするのが前提で、both を
-       足すと最終値が消えたまま固定される。アニメーションが効かない環境では
-       どちらも既定値のまま、つまり完成状態が残る。 */
+    /* 途中値は opacity 属性で伏せてあり、自分の区間だけ show で見せる。
+       最終値は最初から見えていて、出番が来るまでを hide で伏せる。どちらも
+       fill-mode を既定の none のままにするのが前提で、both を足すと最終値が
+       消えたまま固定される。スタイルが効かない環境では属性の値がそのまま
+       残るので、最終値だけが見える。 */
     .gh-stats .tick {
-      opacity: 0;
       animation-name: gh-st-show;
       animation-timing-function: linear;
       animation-duration: var(--dur, 0s);
       animation-delay: var(--dly, 0s);
     }
-    .gh-stats .tick-last { opacity: 1; animation-name: gh-st-hide; }
+    .gh-stats .tick-last { animation-name: gh-st-hide; }
 
     @keyframes gh-st-draw {
       from { stroke-dasharray: 1316; stroke-dashoffset: 1316; }
@@ -56,9 +56,9 @@
   <rect class="frame" x="0.5" y="0.5" width="419" height="249" rx="12" fill="#ffffff" stroke="#d0d7de"/>
   <text x="24" y="42" class="title">okura&#39;s GitHub Stats</text>
   <g class="row" style="--d:0.3s"><text x="24" y="76" class="label">Total Stars</text><text x="396" y="76" text-anchor="end" class="value tick tick-last" style="--dur:0.4s;--dly:0s">0</text></g>
-  <g class="row" style="--d:0.37s"><text x="24" y="102" class="label">Commits (past year)</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.47s" aria-hidden="true">0</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.57s" aria-hidden="true">86</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.67s" aria-hidden="true">152</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.77s" aria-hidden="true">198</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.87s" aria-hidden="true">228</text><text x="396" y="102" text-anchor="end" class="value tick tick-last" style="--dur:0.97s;--dly:0s">245</text></g>
-  <g class="row" style="--d:0.44s"><text x="24" y="128" class="label">Pull Requests</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.54s" aria-hidden="true">0</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.64s" aria-hidden="true">39</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.74s" aria-hidden="true">68</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.84s" aria-hidden="true">89</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.94s" aria-hidden="true">102</text><text x="396" y="128" text-anchor="end" class="value tick tick-last" style="--dur:1.04s;--dly:0s">110</text></g>
-  <g class="row" style="--d:0.51s"><text x="24" y="154" class="label">Issues</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.61s" aria-hidden="true">0</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.71s" aria-hidden="true">24</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.81s" aria-hidden="true">42</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.91s" aria-hidden="true">55</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:1.01s" aria-hidden="true">63</text><text x="396" y="154" text-anchor="end" class="value tick tick-last" style="--dur:1.11s;--dly:0s">68</text></g>
+  <g class="row" style="--d:0.37s"><text x="24" y="102" class="label">Commits (past year)</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.47s" opacity="0" aria-hidden="true">0</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.57s" opacity="0" aria-hidden="true">86</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.67s" opacity="0" aria-hidden="true">152</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.77s" opacity="0" aria-hidden="true">198</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.87s" opacity="0" aria-hidden="true">228</text><text x="396" y="102" text-anchor="end" class="value tick tick-last" style="--dur:0.97s;--dly:0s">245</text></g>
+  <g class="row" style="--d:0.44s"><text x="24" y="128" class="label">Pull Requests</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.54s" opacity="0" aria-hidden="true">0</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.64s" opacity="0" aria-hidden="true">39</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.74s" opacity="0" aria-hidden="true">68</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.84s" opacity="0" aria-hidden="true">89</text><text x="396" y="128" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.94s" opacity="0" aria-hidden="true">102</text><text x="396" y="128" text-anchor="end" class="value tick tick-last" style="--dur:1.04s;--dly:0s">110</text></g>
+  <g class="row" style="--d:0.51s"><text x="24" y="154" class="label">Issues</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.61s" opacity="0" aria-hidden="true">0</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.71s" opacity="0" aria-hidden="true">24</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.81s" opacity="0" aria-hidden="true">42</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.91s" opacity="0" aria-hidden="true">55</text><text x="396" y="154" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:1.01s" opacity="0" aria-hidden="true">63</text><text x="396" y="154" text-anchor="end" class="value tick tick-last" style="--dur:1.11s;--dly:0s">68</text></g>
   <g class="row" style="--d:0.58s"><text x="24" y="180" class="label">Followers</text><text x="396" y="180" text-anchor="end" class="value tick tick-last" style="--dur:0.68s;--dly:0s">0</text></g>
   <text x="24" y="202" class="section">Top Languages</text>
   <clipPath id="gh-stats-bar"><rect x="24" y="212" width="372" height="8" rx="4"/></clipPath>

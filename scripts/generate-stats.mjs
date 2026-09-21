@@ -6,9 +6,8 @@
 // 出力にタイムスタンプを含めないため、統計が変わらない日はファイルも変化しない。
 //
 // カードは表示時に一度だけ再生されるアニメーションを持つ (全体で約 1.8 秒)。
-// すべての要素は完成状態を CSS の既定値として持ち、アニメーション側が開始状態を
-// 作る。そのため CSS アニメーションを解釈しないレンダラでは完成状態がそのまま
-// 出る。ただしアニメーションを解釈するレンダラが t=0 で静止画にした場合は途中
+// 完成状態を属性か CSS の既定値として持ち、アニメーション側が開始状態を作る。
+// そのため CSS を解釈しないレンダラでも完成状態がそのまま出る。ただしアニメーションを解釈するレンダラが t=0 で静止画にした場合は途中
 // 状態が写る。prefers-reduced-motion: reduce では全アニメーションを止める。
 // 進行のタイミングはすべて下の定数から CSS に埋め込むので、定数を変えれば
 // カード全体がそろって追従する。
@@ -159,7 +158,9 @@ const rowsSvg = rows
       `style="--dur:${sec(dur)};--dly:${sec(delay)}"` +
       // ルートの role="img" により子孫は本来読み上げられないが、それを
       // 尊重しないテキスト抽出への保険として途中値には aria-hidden を付ける。
-      `${decorative ? ' aria-hidden="true"' : ""}>${esc(text)}</text>`;
+      // 伏せるのは属性で指定する。スタイルが効かない環境でも途中値が出ず、
+      // 最終値だけが残る。
+      `${decorative ? ' opacity="0" aria-hidden="true"' : ""}>${esc(text)}</text>`;
 
     // 途中値は自分の区間だけ見せ、最終値は出番が来るまで伏せておく。
     const ticks = mid.map((text, k) =>
@@ -225,18 +226,18 @@ ${shell.css}
     }
     .${rootClass} .legend-item { animation: ${prefix}-fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
 
-    /* 途中値は既定で隠して自分の区間だけ見せ、最終値は既定で表示して出番まで
-       伏せる。どちらも fill-mode を既定の none のままにするのが前提で、both を
-       足すと最終値が消えたまま固定される。アニメーションが効かない環境では
-       どちらも既定値のまま、つまり完成状態が残る。 */
+    /* 途中値は opacity 属性で伏せてあり、自分の区間だけ show で見せる。
+       最終値は最初から見えていて、出番が来るまでを hide で伏せる。どちらも
+       fill-mode を既定の none のままにするのが前提で、both を足すと最終値が
+       消えたまま固定される。スタイルが効かない環境では属性の値がそのまま
+       残るので、最終値だけが見える。 */
     .${rootClass} .tick {
-      opacity: 0;
       animation-name: ${prefix}-show;
       animation-timing-function: linear;
       animation-duration: var(--dur, 0s);
       animation-delay: var(--dly, 0s);
     }
-    .${rootClass} .tick-last { opacity: 1; animation-name: ${prefix}-hide; }
+    .${rootClass} .tick-last { animation-name: ${prefix}-hide; }
 
 ${shell.keyframes}
     @keyframes ${prefix}-rowIn {

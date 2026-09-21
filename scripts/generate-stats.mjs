@@ -13,21 +13,18 @@
 // 進行のタイミングはすべて下の定数から CSS に埋め込むので、定数を変えれば
 // カード全体がそろって追従する。
 
-import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import {
+  ease,
+  esc,
+  fmt,
+  framePerimeter,
+  graphql,
+  readEnv,
+  sec,
+  writeSvg,
+} from "./lib/card.mjs";
 
-const token = process.env.GITHUB_TOKEN;
-const login = process.env.GITHUB_LOGIN;
-const outPath = process.env.OUT_PATH || "assets/stats.svg";
-
-if (!token) {
-  console.error("GITHUB_TOKEN is not set");
-  process.exit(1);
-}
-if (!login) {
-  console.error("GITHUB_LOGIN is not set");
-  process.exit(1);
-}
+const { token, login, outPath } = readEnv("assets/stats.svg");
 
 const query = /* GraphQL */ `
   query ($login: String!) {
@@ -64,28 +61,7 @@ const query = /* GraphQL */ `
   }
 `;
 
-const res = await fetch("https://api.github.com/graphql", {
-  method: "POST",
-  headers: {
-    authorization: `bearer ${token}`,
-    "content-type": "application/json",
-    "user-agent": `${login}-profile-stats`,
-  },
-  body: JSON.stringify({ query, variables: { login } }),
-});
-
-if (!res.ok) {
-  console.error(`GitHub API error: ${res.status} ${await res.text()}`);
-  process.exit(1);
-}
-
-const body = await res.json();
-if (body.errors?.length) {
-  console.error(`GraphQL errors: ${JSON.stringify(body.errors, null, 2)}`);
-  process.exit(1);
-}
-
-const user = body.data.user;
+const { user } = await graphql(token, login, query);
 const repos = user.repositories.nodes;
 
 const stars = repos.reduce((sum, repo) => sum + repo.stargazerCount, 0);
@@ -109,14 +85,6 @@ const topLangs = [...langCounts.entries()]
   .slice(0, 3);
 const langTotal = topLangs.reduce((sum, [, v]) => sum + v.count, 0);
 
-const fmt = (n) => n.toLocaleString("en-US");
-const esc = (s) =>
-  s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
-  );
-
 // カード寸法。枠線の rect は線幅の半分だけ内側に寄せて描く。
 const cardW = 420;
 const cardH = 250;
@@ -124,11 +92,7 @@ const cardR = 12;
 const frameInset = 0.5;
 const frameW = cardW - 2 * frameInset;
 const frameH = cardH - 2 * frameInset;
-// 枠線を一周描くためのダッシュ長。角丸を含む外周を切り上げて使う。
-// 実際の外周より短いと、アニメーション後も破線の隙間が残ってしまう。
-const framePerimeter = Math.ceil(
-  2 * (frameW - 2 * cardR) + 2 * (frameH - 2 * cardR) + 2 * Math.PI * cardR,
-);
+const frameDash = framePerimeter(frameW, frameH, cardR);
 
 // 言語バーの位置とサイズ。セグメント・クリップ・下地で共有する。
 const barX = 24;
@@ -140,9 +104,6 @@ const barRadius = barHeight / 2;
 // インライン展開されたときに他の SVG とぶつからないよう ID に接頭辞を付ける。
 const clipBar = "gh-stats-bar";
 const clipReveal = "gh-stats-reveal";
-
-const ease = "cubic-bezier(.2,.7,.3,1)";
-const sec = (n) => `${+n.toFixed(2)}s`;
 
 // カウントアップで通過する途中値の割合。最終値は value から直接描くので
 // 1 は含めない。増減しても CSS 側の変更は要らない。
@@ -280,8 +241,8 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${
     .tick-last { opacity: 1; animation-name: hide; }
 
     @keyframes draw {
-      from { stroke-dasharray: ${framePerimeter}; stroke-dashoffset: ${framePerimeter}; }
-      to { stroke-dasharray: ${framePerimeter}; stroke-dashoffset: 0; }
+      from { stroke-dasharray: ${frameDash}; stroke-dashoffset: ${frameDash}; }
+      to { stroke-dasharray: ${frameDash}; stroke-dashoffset: 0; }
     }
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(6px); }
@@ -316,6 +277,4 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${
 </svg>
 `;
 
-await mkdir(dirname(outPath), { recursive: true });
-await writeFile(outPath, svg);
-console.log(`Wrote ${outPath}`);
+await writeSvg(outPath, svg);

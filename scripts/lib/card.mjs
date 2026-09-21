@@ -23,6 +23,48 @@ export const ease = "cubic-bezier(.2,.7,.3,1)";
 const framePerimeter = (w, h, r) =>
   Math.ceil(2 * (w - 2 * r) + 2 * (h - 2 * r) + 2 * Math.PI * r);
 
+// GitHub のライト / ダークテーマに寄せた配色。
+//
+// SVG 内に prefers-color-scheme を書く手は使わない。README の画像は img
+// として配られるため、その中のメディアクエリは閲覧者の OS の設定を見に行き、
+// GitHub 側のテーマ設定とはつながらない。OS がダークで GitHub をライトに
+// している人には、白い README に黒いカードが乗ってしまう。
+// 代わりにテーマごとにファイルを作り、README の picture 要素で出し分ける。
+//
+// 文字色はルート要素の fill として置き、クラスごとの色は CSS で上書きする。
+// スタイルを解釈しないレンダラでも、少なくとも背景と対になる色で文字が読める。
+export const palette = {
+  light: {
+    bg: "#ffffff",
+    border: "#d0d7de",
+    accent: "#0969da",
+    accentSoft: "#a5d6ff",
+    text: "#24292f",
+    muted: "#57606a",
+    subtle: "#eaeef2",
+    // コントリビューションカレンダーの 5 段階。
+    scale: ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"],
+  },
+  dark: {
+    bg: "#0d1117",
+    border: "#30363d",
+    accent: "#58a6ff",
+    accentSoft: "#1f6feb",
+    text: "#e6edf3",
+    muted: "#8b949e",
+    subtle: "#21262d",
+    // ダーク側は明暗が逆で、薄い段ほど暗くなる。
+    scale: ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"],
+  },
+};
+
+// 書き出す先と配色の組。ダークは拡張子の前に -dark を挟む。同じ取得結果から
+// 両方を作るので、テーマを切り替えても数値が食い違わない。
+export const themedOutputs = (outPath) => [
+  [outPath, palette.light],
+  [outPath.replace(/\.svg$/, "-dark.svg"), palette.dark],
+];
+
 // カードの外枠と、どのカードも使うキーフレームを組み立てる。
 // セレクタとキーフレーム名にカードごとの接頭辞を付けるのは、2 枚を同じ文書に
 // インライン展開したときに互いを上書きしないため。
@@ -31,6 +73,7 @@ export function cardShell({
   prefix,
   width,
   height,
+  theme = palette.light,
   radius = 12,
   frameDur = 0.7,
 }) {
@@ -55,7 +98,7 @@ export function cardShell({
     reducedMotion: `    @media (prefers-reduced-motion: reduce) {
       .${rootClass} * { animation: none !important; }
     }`,
-    rect: `<rect class="frame" x="${inset}" y="${inset}" width="${frameW}" height="${frameH}" rx="${radius}" fill="#ffffff" stroke="#d0d7de"/>`,
+    rect: `<rect class="frame" x="${inset}" y="${inset}" width="${frameW}" height="${frameH}" rx="${radius}" fill="${theme.bg}" stroke="${theme.border}"/>`,
   };
 }
 

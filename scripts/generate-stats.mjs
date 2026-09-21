@@ -2,13 +2,15 @@
 // 必要な環境変数:
 //   GITHUB_TOKEN  - GitHub API トークン (read:user 相当のスコープ)
 //   GITHUB_LOGIN  - 対象ユーザーのログイン名
-//   OUT_PATH      - 出力先 SVG パス (省略時: assets/stats.svg)
+//   OUT_PATH      - ライト版の出力先 (省略時: assets/stats.svg)。ダーク版は
+//                   同じ場所に -dark を付けた名前で並べて書き出す
 // 出力にタイムスタンプを含めないため、統計が変わらない日はファイルも変化しない。
 //
 // カードは表示時に一度だけ再生されるアニメーションを持つ (全体で約 1.8 秒)。
 // 完成状態を属性か CSS の既定値として持ち、アニメーション側が開始状態を作る。
-// そのため CSS を解釈しないレンダラでも完成状態がそのまま出る。ただしアニメーションを解釈するレンダラが t=0 で静止画にした場合は途中
-// 状態が写る。prefers-reduced-motion: reduce では全アニメーションを止める。
+// そのため CSS を解釈しないレンダラでも完成状態がそのまま出る。ただし
+// アニメーションを解釈するレンダラが t=0 で静止画にした場合は途中状態が写る。
+// prefers-reduced-motion: reduce では全アニメーションを止める。
 // 進行のタイミングはすべて下の定数から CSS に埋め込むので、定数を変えれば
 // カード全体がそろって追従する。
 
@@ -19,6 +21,7 @@ import {
   fmt,
   graphql,
   readEnv,
+  themedOutputs,
   sec,
   writeSvg,
 } from "./lib/card.mjs";
@@ -72,10 +75,7 @@ const langCounts = new Map();
 for (const repo of repos) {
   const lang = repo.primaryLanguage;
   if (!lang) continue;
-  const entry = langCounts.get(lang.name) ?? {
-    count: 0,
-    color: lang.color ?? "#8b949e",
-  };
+  const entry = langCounts.get(lang.name) ?? { count: 0, color: lang.color };
   entry.count += 1;
   langCounts.set(lang.name, entry);
 }
@@ -89,7 +89,6 @@ const rootClass = "gh-stats";
 const prefix = "gh-st";
 const cardW = 420;
 const cardH = 250;
-const shell = cardShell({ rootClass, prefix, width: cardW, height: cardH });
 
 // 言語バーの位置とサイズ。セグメント・クリップ・下地で共有する。
 const barX = 24;
@@ -177,92 +176,107 @@ const rowsSvg = rows
   })
   .join("\n  ");
 
+// セグメントの幅はテーマによらないので先に決めておく。
 let offset = 0;
-const segments = topLangs
-  .map(([, { count, color }], i) => {
-    const width =
-      i === topLangs.length - 1
-        ? barWidth - offset
-        : Math.round((count / langTotal) * barWidth);
-    const rect = `<rect x="${barX + offset}" y="${barY}" width="${width}" height="${barHeight}" fill="${color}"/>`;
-    offset += width;
-    return rect;
-  })
-  .join("");
+const segmentBoxes = topLangs.map(([, { count, color }], i) => {
+  const width =
+    i === topLangs.length - 1
+      ? barWidth - offset
+      : Math.round((count / langTotal) * barWidth);
+  const box = { x: barX + offset, width, color };
+  offset += width;
+  return box;
+});
 
 let legendX = 24;
-const legend = topLangs
-  .map(([name, { count, color }], i) => {
-    const pct = Math.round((count / langTotal) * 100);
-    const delay = sec(legendBase + i * legendGap);
-    const item =
-      `<g class="legend-item" style="--d:${delay}">` +
-      `<circle cx="${legendX + 5}" cy="232" r="5" fill="${color}"/>` +
-      `<text x="${legendX + 16}" y="236" class="legend">${esc(name)} ${pct}%</text>` +
-      `</g>`;
-    legendX += 16 + (`${name} ${pct}%`.length + 2) * 7;
-    return item;
-  })
-  .join("");
+const legendItems = topLangs.map(([name, { count, color }], i) => {
+  const pct = Math.round((count / langTotal) * 100);
+  const item = { x: legendX, name, pct, color, delay: sec(legendBase + i * legendGap) };
+  legendX += 16 + (`${name} ${pct}%`.length + 2) * 7;
+  return item;
+});
 
 const title = `${user.name ?? login}'s GitHub Stats`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="${rootClass}" role="img" aria-label="GitHub stats for ${esc(login)}">
-  <style>
-    .${rootClass} .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .${rootClass} .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .${rootClass} .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-    .${rootClass} .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .${rootClass} .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+// テーマごとに 1 枚ずつ書き出す。取得は 1 回だけなので、ライトとダークで
+// 数値が食い違うことがない。
+const render = (theme) => {
+  const shell = cardShell({ rootClass, prefix, width: cardW, height: cardH, theme });
+  const segments = segmentBoxes
+    .map(
+      ({ x, width, color }) =>
+        `<rect x="${x}" y="${barY}" width="${width}" height="${barHeight}" fill="${color ?? theme.muted}"/>`,
+    )
+    .join("");
+  const legend = legendItems
+    .map(
+      ({ x, name, pct, color, delay }) =>
+        `<g class="legend-item" style="--d:${delay}">` +
+        `<circle cx="${x + 5}" cy="232" r="5" fill="${color ?? theme.muted}"/>` +
+        `<text x="${x + 16}" y="236" class="legend">${esc(name)} ${pct}%</text>` +
+        `</g>`,
+    )
+    .join("");
 
-${shell.css}
-    .${rootClass} .title { animation: ${prefix}-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
-    .${rootClass} .row { animation: ${prefix}-rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
-    .${rootClass} .section, .${rootClass} .track { animation: ${prefix}-fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
-    .${rootClass} .reveal {
-      transform-box: view-box;
-      transform-origin: ${barX}px ${barY + barRadius}px;
-      animation: ${prefix}-grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
-    }
-    .${rootClass} .legend-item { animation: ${prefix}-fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="${rootClass}" fill="${theme.text}" role="img" aria-label="GitHub stats for ${esc(login)}">
+    <style>
+      .${rootClass} .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.accent}; }
+      .${rootClass} .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.muted}; }
+      .${rootClass} .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.text}; }
+      .${rootClass} .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.muted}; }
+      .${rootClass} .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.text}; }
 
-    /* 途中値は opacity 属性で伏せてあり、自分の区間だけ show で見せる。
-       最終値は最初から見えていて、出番が来るまでを hide で伏せる。どちらも
-       fill-mode を既定の none のままにするのが前提で、both を足すと最終値が
-       消えたまま固定される。スタイルが効かない環境では属性の値がそのまま
-       残るので、最終値だけが見える。 */
-    .${rootClass} .tick {
-      animation-name: ${prefix}-show;
-      animation-timing-function: linear;
-      animation-duration: var(--dur, 0s);
-      animation-delay: var(--dly, 0s);
-    }
-    .${rootClass} .tick-last { animation-name: ${prefix}-hide; }
+  ${shell.css}
+      .${rootClass} .title { animation: ${prefix}-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
+      .${rootClass} .row { animation: ${prefix}-rowIn ${sec(rowDur)} ${ease} both var(--d, 0s); }
+      .${rootClass} .section, .${rootClass} .track { animation: ${prefix}-fadeUp ${sec(sectionDur)} ${ease} both ${sec(sectionDelay)}; }
+      .${rootClass} .reveal {
+        transform-box: view-box;
+        transform-origin: ${barX}px ${barY + barRadius}px;
+        animation: ${prefix}-grow ${sec(barDur)} ${ease} both ${sec(barDelay)};
+      }
+      .${rootClass} .legend-item { animation: ${prefix}-fadeUp ${sec(legendDur)} ${ease} both var(--d, 0s); }
 
-${shell.keyframes}
-    @keyframes ${prefix}-rowIn {
-      from { opacity: 0; transform: translateX(-10px); }
-      to { opacity: 1; transform: none; }
-    }
-    @keyframes ${prefix}-grow {
-      from { transform: scaleX(0); }
-      to { transform: scaleX(1); }
-    }
-    @keyframes ${prefix}-show { from, to { opacity: 1; } }
-    @keyframes ${prefix}-hide { from, to { opacity: 0; } }
+      /* 途中値は opacity 属性で伏せてあり、自分の区間だけ show で見せる。
+         最終値は最初から見えていて、出番が来るまでを hide で伏せる。どちらも
+         fill-mode を既定の none のままにするのが前提で、both を足すと最終値が
+         消えたまま固定される。スタイルが効かない環境では属性の値がそのまま
+         残るので、最終値だけが見える。 */
+      .${rootClass} .tick {
+        animation-name: ${prefix}-show;
+        animation-timing-function: linear;
+        animation-duration: var(--dur, 0s);
+        animation-delay: var(--dly, 0s);
+      }
+      .${rootClass} .tick-last { animation-name: ${prefix}-hide; }
 
-${shell.reducedMotion}
-  </style>
-  ${shell.rect}
-  <text x="24" y="42" class="title">${esc(title)}</text>
-  ${rowsSvg}
-  <text x="24" y="202" class="section">Top Languages</text>
-  <clipPath id="${clipBar}"><rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barRadius}"/></clipPath>
-  <clipPath id="${clipReveal}"><rect class="reveal" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}"/></clipPath>
-  <rect class="track" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barRadius}" fill="#eaeef2"/>
-  <g clip-path="url(#${clipBar})"><g clip-path="url(#${clipReveal})">${segments}</g></g>
-  ${legend}
-</svg>
-`;
+  ${shell.keyframes}
+      @keyframes ${prefix}-rowIn {
+        from { opacity: 0; transform: translateX(-10px); }
+        to { opacity: 1; transform: none; }
+      }
+      @keyframes ${prefix}-grow {
+        from { transform: scaleX(0); }
+        to { transform: scaleX(1); }
+      }
+      @keyframes ${prefix}-show { from, to { opacity: 1; } }
+      @keyframes ${prefix}-hide { from, to { opacity: 0; } }
 
-await writeSvg(outPath, svg);
+  ${shell.reducedMotion}
+    </style>
+    ${shell.rect}
+    <text x="24" y="42" class="title">${esc(title)}</text>
+    ${rowsSvg}
+    <text x="24" y="202" class="section">Top Languages</text>
+    <clipPath id="${clipBar}"><rect x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barRadius}"/></clipPath>
+    <clipPath id="${clipReveal}"><rect class="reveal" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}"/></clipPath>
+    <rect class="track" x="${barX}" y="${barY}" width="${barWidth}" height="${barHeight}" rx="${barRadius}" fill="${theme.subtle}"/>
+    <g clip-path="url(#${clipBar})"><g clip-path="url(#${clipReveal})">${segments}</g></g>
+    ${legend}
+  </svg>
+  `;
+};
+
+for (const [path, theme] of themedOutputs(outPath)) {
+  await writeSvg(path, render(theme));
+}

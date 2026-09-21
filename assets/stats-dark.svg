@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" viewBox="0 0 420 250" class="gh-stats" fill="#24292f" role="img" aria-label="GitHub stats for okrago10">
+<svg xmlns="http://www.w3.org/2000/svg" width="420" height="250" viewBox="0 0 420 250" class="gh-stats" fill="#e6edf3" role="img" aria-label="GitHub stats for okrago10">
     <style>
-      .gh-stats .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-      .gh-stats .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-      .gh-stats .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-      .gh-stats .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-      .gh-stats .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
+      .gh-stats .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #58a6ff; }
+      .gh-stats .label { font: 400 14px 'Segoe UI', Ubuntu, sans-serif; fill: #8b949e; }
+      .gh-stats .value { font: 600 14px 'Segoe UI', Ubuntu, sans-serif; fill: #e6edf3; }
+      .gh-stats .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #8b949e; }
+      .gh-stats .legend { font: 400 12px 'Segoe UI', Ubuntu, sans-serif; fill: #e6edf3; }
 
       .gh-stats .frame { animation: gh-st-draw 0.7s ease-out both; }
       .gh-stats .title { animation: gh-st-fadeUp 0.4s cubic-bezier(.2,.7,.3,1) both 0.15s; }
@@ -53,7 +53,7 @@
       .gh-stats * { animation: none !important; }
     }
     </style>
-    <rect class="frame" x="0.5" y="0.5" width="419" height="249" rx="12" fill="#ffffff" stroke="#d0d7de"/>
+    <rect class="frame" x="0.5" y="0.5" width="419" height="249" rx="12" fill="#0d1117" stroke="#30363d"/>
     <text x="24" y="42" class="title">okura&#39;s GitHub Stats</text>
     <g class="row" style="--d:0.3s"><text x="24" y="76" class="label">Total Stars</text><text x="396" y="76" text-anchor="end" class="value tick tick-last" style="--dur:0.4s;--dly:0s">0</text></g>
   <g class="row" style="--d:0.37s"><text x="24" y="102" class="label">Commits (past year)</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.47s" opacity="0" aria-hidden="true">0</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.57s" opacity="0" aria-hidden="true">86</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.67s" opacity="0" aria-hidden="true">152</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.77s" opacity="0" aria-hidden="true">198</text><text x="396" y="102" text-anchor="end" class="value tick" style="--dur:0.1s;--dly:0.87s" opacity="0" aria-hidden="true">228</text><text x="396" y="102" text-anchor="end" class="value tick tick-last" style="--dur:0.97s;--dly:0s">245</text></g>
@@ -63,7 +63,7 @@
     <text x="24" y="202" class="section">Top Languages</text>
     <clipPath id="gh-stats-bar"><rect x="24" y="212" width="372" height="8" rx="4"/></clipPath>
     <clipPath id="gh-stats-reveal"><rect class="reveal" x="24" y="212" width="372" height="8"/></clipPath>
-    <rect class="track" x="24" y="212" width="372" height="8" rx="4" fill="#eaeef2"/>
+    <rect class="track" x="24" y="212" width="372" height="8" rx="4" fill="#21262d"/>
     <g clip-path="url(#gh-stats-bar)"><g clip-path="url(#gh-stats-reveal)"><rect x="24" y="212" width="266" height="8" fill="#3178c6"/><rect x="290" y="212" width="53" height="8" fill="#f1e05a"/><rect x="343" y="212" width="53" height="8" fill="#dea584"/></g></g>
     <g class="legend-item" style="--d:1.28s"><circle cx="29" cy="232" r="5" fill="#3178c6"/><text x="40" y="236" class="legend">TypeScript 71%</text></g><g class="legend-item" style="--d:1.36s"><circle cx="157" cy="232" r="5" fill="#f1e05a"/><text x="168" y="236" class="legend">JavaScript 14%</text></g><g class="legend-item" style="--d:1.44s"><circle cx="285" cy="232" r="5" fill="#dea584"/><text x="296" y="236" class="legend">Rust 14%</text></g>
   </svg>

@@ -1,8 +1,14 @@
 ## Hi there 👋
 
-![GitHub Stats](assets/stats.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/okrago10/okrago10/main/assets/stats-dark.svg">
+  <img alt="GitHub Stats" src="assets/stats.svg">
+</picture>
 
-![GitHub Activity](assets/activity.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/okrago10/okrago10/main/assets/activity-dark.svg">
+  <img alt="GitHub Activity" src="assets/activity.svg">
+</picture>
 
 <!--
 **okrago10/okrago10** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.

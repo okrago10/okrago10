@@ -31,7 +31,9 @@ jobs:
           # 最新の 26.7.0 はリリースから7日未満のため、26.6.0 (2026-08-03) に固定
           node-version: "26.6.0"
 
-      - name: Generate stats card
+      # 生成側がライトとダークを 1 枚ずつ書き出す。README の picture 要素が
+      # GitHub のテーマ設定に合わせて出し分ける。
+      - name: Generate stats cards
         env:
           GITHUB_TOKEN: ${{ secrets.STATS_TOKEN }}
           GITHUB_LOGIN: ${{ github.repository_owner }}
@@ -39,7 +41,7 @@ jobs:
         run: node scripts/generate-stats.mjs
 
       # stats 側が落ちても activity は作り直す (逆向きは commit 側で吸収する)。
-      - name: Generate activity card
+      - name: Generate activity cards
         if: ${{ !cancelled() }}
         env:
           GITHUB_TOKEN: ${{ secrets.STATS_TOKEN }}
@@ -58,11 +60,13 @@ jobs:
           # 実行中にブランチが動いていると push が弾かれる。カードは毎回すべて
           # 書き換わるので rebase では必ず衝突する。生成結果を取り置いてから
           # リモートの先端に載せ直せば、浅いクローンのままでも衝突しない。
+          cards="assets/stats.svg assets/stats-dark.svg \
+            assets/activity.svg assets/activity-dark.svg"
           staging="$(mktemp -d)"
-          cp assets/stats.svg assets/activity.svg "$staging/"
+          cp $cards "$staging/"
           git reset --hard "origin/$branch"
-          cp "$staging/stats.svg" "$staging/activity.svg" assets/
-          git add assets/stats.svg assets/activity.svg
+          cp "$staging"/*.svg assets/
+          git add $cards
           if git diff --staged --quiet; then
             echo "cards unchanged"
             exit 0

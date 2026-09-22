@@ -3,7 +3,8 @@
 // 必要な環境変数:
 //   GITHUB_TOKEN  - GitHub API トークン (read:user 相当のスコープ)
 //   GITHUB_LOGIN  - 対象ユーザーのログイン名
-//   OUT_PATH      - 出力先 SVG パス (省略時: assets/activity.svg)
+//   OUT_PATH      - ライト版の出力先 (省略時: assets/activity.svg)。ダーク版は
+//                   同じ場所に -dark を付けた名前で並べて書き出す
 //   TZ_OFFSET_HOURS - UTC 表記のコミットをどの地方時として読むか (省略時: 9)
 // 出力にタイムスタンプを含めないため、活動が変わらない日はファイルも変化しない。
 //
@@ -19,6 +20,7 @@ import {
   graphql,
   readEnv,
   readNumber,
+  themedOutputs,
   searchCommits,
   sec,
   writeSvg,
@@ -141,7 +143,6 @@ const rootClass = "gh-activity";
 const prefix = "gh-ac";
 const cardW = 420;
 const cardH = 300;
-const shell = cardShell({ rootClass, prefix, width: cardW, height: cardH });
 
 // 草のグリッド。1 列が 1 週、縦が日曜から土曜。
 const gridX = 24;
@@ -167,27 +168,38 @@ const contentRight = chartX + chartW;
 // 凡例の右に置く "More" のぶんの余白。
 const legendLabelGap = 32;
 
-// GitHub のカレンダーと同じ 5 段階の緑。
-const levels = [
-  ["NONE", "#ebedf0"],
-  ["FIRST_QUARTILE", "#9be9a8"],
-  ["SECOND_QUARTILE", "#40c463"],
-  ["THIRD_QUARTILE", "#30a14e"],
-  ["FOURTH_QUARTILE", "#216e39"],
+// GraphQL が返す段階の名前。色はテーマの scale と同じ並び。
+const levelNames = [
+  "NONE",
+  "FIRST_QUARTILE",
+  "SECOND_QUARTILE",
+  "THIRD_QUARTILE",
+  "FOURTH_QUARTILE",
 ];
 
 // セルは 1 年分で 370 個近くになる。段階ごとに色つきの矩形を defs へ置き、
 // <use> は参照と y だけを持たせて出力を抑える。色を CSS ではなく参照先の
 // 属性に持たせているので、スタイルを解釈しないレンダラでも緑のまま出る。
+// 色は palette 側の scale と同じ並びで引くので、数が合わないと無色のセルが
+// できてしまう。生成時に気づけるようにしておく。
+for (const [name, theme] of themedOutputs(outPath)) {
+  if (theme.scale.length !== levelNames.length) {
+    throw new Error(
+      `palette scale (${theme.scale.length}) does not match levels (${levelNames.length}) for ${name}`,
+    );
+  }
+}
+
 const cellRef = Object.fromEntries(
-  levels.map(([name], i) => [name, `gh-ac-q${i}`]),
+  levelNames.map((name, i) => [name, `${prefix}-q${i}`]),
 );
-const cellDefs = levels
-  .map(
-    ([name, color]) =>
-      `<rect id="${cellRef[name]}" width="${cell}" height="${cell}" rx="1" fill="${color}"/>`,
-  )
-  .join("");
+const cellDefs = (theme) =>
+  levelNames
+    .map(
+      (name, i) =>
+        `<rect id="${cellRef[name]}" width="${cell}" height="${cell}" rx="1" fill="${theme.scale[i]}"/>`,
+    )
+    .join("");
 
 // アニメーションのタイミング (秒)。後続の要素は前の要素の完了時刻から導く。
 // 見出しと凡例だけは少し手前から重ねて、間延びしないようにしている。
@@ -249,18 +261,30 @@ const monthLabelParts = [];
 const monthLabels = monthLabelParts.join("");
 
 const maxHour = Math.max(...hourCounts);
-const hourBars = hourCounts
-  .map((count, h) => {
-    const height = count === 0 ? 0 : Math.max(2, Math.round((count / maxHour) * chartH));
-    if (height === 0) return "";
-    const x = +(chartX + h * hourPitch).toFixed(2);
-    const fill = h === peakHour ? "#0969da" : "#a5d6ff";
-    return (
-      `<rect class="hour-bar" style="--d:${sec(hourBase + h * hourGap)}" ` +
-      `x="${x}" y="${chartBase - height}" width="${hourBarW}" height="${height}" rx="2" fill="${fill}"/>`
-    );
-  })
-  .join("");
+// 棒の高さと位置はテーマによらない。色だけ描画時に決める。
+const hourBoxes = hourCounts.flatMap((count, h) => {
+  const height = count === 0 ? 0 : Math.max(2, Math.round((count / maxHour) * chartH));
+  if (height === 0) return [];
+  return [
+    {
+      x: +(chartX + h * hourPitch).toFixed(2),
+      height,
+      peak: h === peakHour,
+      delay: sec(hourBase + h * hourGap),
+    },
+  ];
+});
+
+// ピークだけアクセント色にして、ほかは一段落とす。
+const hourBars = (theme) =>
+  hourBoxes
+    .map(
+      ({ x, height, peak, delay }) =>
+        `<rect class="hour-bar" style="--d:${delay}" ` +
+        `x="${x}" y="${chartBase - height}" width="${hourBarW}" height="${height}" rx="2" ` +
+        `fill="${peak ? theme.accent : theme.accentSoft}"/>`,
+    )
+    .join("");
 
 const hourAxis = [0, 6, 12, 18]
   .map(
@@ -270,78 +294,86 @@ const hourAxis = [0, 6, 12, 18]
   .join("");
 
 // 凡例は右端ぞろえ。Less → 5 段階 → More の順に並べる。
-const legendCellsWidth = levels.length * cellPitch - cellGap;
+const legendCellsWidth = levelNames.length * cellPitch - cellGap;
 const legendCellsX = contentRight - legendLabelGap - legendCellsWidth;
-const legendCells = levels
+const legendCells = levelNames
   .map(
-    ([name], i) =>
+    (name, i) =>
       `<use href="#${cellRef[name]}" x="${legendCellsX + i * cellPitch}" y="${legendY - cell}"/>`,
   )
   .join("");
 
 const title = `${user.name ?? login}'s GitHub Activity`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="${rootClass}" role="img" aria-label="GitHub activity for ${esc(login)}: ${fmt(calendar.totalContributions)} contributions in the past year">
-  <style>
-    .${rootClass} .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: #0969da; }
-    .${rootClass} .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
-    .${rootClass} .value { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: #24292f; }
-    .${rootClass} .axis { font: 400 9px 'Segoe UI', Ubuntu, sans-serif; fill: #8b949e; }
-    .${rootClass} .summary { font: 400 11px 'Segoe UI', Ubuntu, sans-serif; fill: #57606a; }
+// テーマごとに 1 枚ずつ書き出す。取得は 1 回だけなので、ライトとダークで
+// 数値が食い違うことがない。
+const render = (theme) => {
+  const shell = cardShell({ rootClass, prefix, width: cardW, height: cardH, theme });
 
-${shell.css}
-    .${rootClass} .title { animation: ${prefix}-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
-    .${rootClass} .cal-heading { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(calHeadingDelay)}; }
-    .${rootClass} .months { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(monthDelay)}; }
-    .${rootClass} .week { animation: ${prefix}-fadeIn ${sec(weekDur)} ${ease} both var(--d, 0s); }
-    .${rootClass} .legend { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(legendDelay)}; }
-    .${rootClass} .rhythm-heading { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
-    .${rootClass} .baseline { animation: ${prefix}-fadeIn ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
-    .${rootClass} .hour-bar {
-      transform-box: view-box;
-      transform-origin: 0 ${chartBase}px;
-      animation: ${prefix}-growY ${sec(hourDur)} ${ease} both var(--d, 0s);
-    }
-    .${rootClass} .hour-axis { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(axisDelay)}; }
-    .${rootClass} .summary { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(summaryDelay)}; }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${cardW}" height="${cardH}" viewBox="0 0 ${cardW} ${cardH}" class="${rootClass}" fill="${theme.text}" role="img" aria-label="GitHub activity for ${esc(login)}: ${fmt(calendar.totalContributions)} contributions in the past year">
+    <style>
+      .${rootClass} .title { font: 600 18px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.accent}; }
+      .${rootClass} .section { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.muted}; }
+      .${rootClass} .value { font: 600 12px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.text}; }
+      .${rootClass} .axis { font: 400 9px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.muted}; }
+      .${rootClass} .summary { font: 400 11px 'Segoe UI', Ubuntu, sans-serif; fill: ${theme.muted}; }
 
-${shell.keyframes}
-    @keyframes ${prefix}-fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes ${prefix}-growY {
-      from { transform: scaleY(0); }
-      to { transform: scaleY(1); }
-    }
+  ${shell.css}
+      .${rootClass} .title { animation: ${prefix}-fadeUp ${sec(titleDur)} ${ease} both ${sec(titleDelay)}; }
+      .${rootClass} .cal-heading { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(calHeadingDelay)}; }
+      .${rootClass} .months { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(monthDelay)}; }
+      .${rootClass} .week { animation: ${prefix}-fadeIn ${sec(weekDur)} ${ease} both var(--d, 0s); }
+      .${rootClass} .legend { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(legendDelay)}; }
+      .${rootClass} .rhythm-heading { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
+      .${rootClass} .baseline { animation: ${prefix}-fadeIn ${sec(headingDur)} ${ease} both ${sec(rhythmHeadingDelay)}; }
+      .${rootClass} .hour-bar {
+        transform-box: view-box;
+        transform-origin: 0 ${chartBase}px;
+        animation: ${prefix}-growY ${sec(hourDur)} ${ease} both var(--d, 0s);
+      }
+      .${rootClass} .hour-axis { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(axisDelay)}; }
+      .${rootClass} .summary { animation: ${prefix}-fadeUp ${sec(headingDur)} ${ease} both ${sec(summaryDelay)}; }
 
-${shell.reducedMotion}
-  </style>
-  <defs>${cellDefs}</defs>
-  ${shell.rect}
-  <text x="24" y="42" class="title">${esc(title)}</text>
+  ${shell.keyframes}
+      @keyframes ${prefix}-fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes ${prefix}-growY {
+        from { transform: scaleY(0); }
+        to { transform: scaleY(1); }
+      }
 
-  <g class="cal-heading">
-    <text x="24" y="72" class="section">Contributions (past year)</text>
-    <text x="${contentRight}" y="72" text-anchor="end" class="value">${fmt(calendar.totalContributions)}</text>
-  </g>
-  <g class="months">${monthLabels}</g>
-  ${weeksSvg}
-  <g class="legend">
-    <text x="${legendCellsX - 6}" y="${legendY}" text-anchor="end" class="axis">Less</text>
-    ${legendCells}
-    <text x="${legendCellsX + legendCellsWidth + 6}" y="${legendY}" class="axis">More</text>
-  </g>
+  ${shell.reducedMotion}
+    </style>
+    <defs>${cellDefs(theme)}</defs>
+    ${shell.rect}
+    <text x="24" y="42" class="title">${esc(title)}</text>
 
-  <g class="rhythm-heading">
-    <text x="24" y="180" class="section">Daily rhythm</text>
-    <text x="${contentRight}" y="180" text-anchor="end" class="value">${esc(rhythmLabel)}</text>
-  </g>
-  <line class="baseline" x1="${chartX}" y1="${chartBase + 0.5}" x2="${chartX + chartW}" y2="${chartBase + 0.5}" stroke="#eaeef2"/>
-  ${hourBars}
-  <g class="hour-axis">${hourAxis}</g>
-  <text x="24" y="${summaryY}" class="summary">${esc(summary)}</text>
-</svg>
-`;
+    <g class="cal-heading">
+      <text x="24" y="72" class="section">Contributions (past year)</text>
+      <text x="${contentRight}" y="72" text-anchor="end" class="value">${fmt(calendar.totalContributions)}</text>
+    </g>
+    <g class="months">${monthLabels}</g>
+    ${weeksSvg}
+    <g class="legend">
+      <text x="${legendCellsX - 6}" y="${legendY}" text-anchor="end" class="axis">Less</text>
+      ${legendCells}
+      <text x="${legendCellsX + legendCellsWidth + 6}" y="${legendY}" class="axis">More</text>
+    </g>
 
-await writeSvg(outPath, svg);
+    <g class="rhythm-heading">
+      <text x="24" y="180" class="section">Daily rhythm</text>
+      <text x="${contentRight}" y="180" text-anchor="end" class="value">${esc(rhythmLabel)}</text>
+    </g>
+    <line class="baseline" x1="${chartX}" y1="${chartBase + 0.5}" x2="${chartX + chartW}" y2="${chartBase + 0.5}" stroke="${theme.subtle}"/>
+    ${hourBars(theme)}
+    <g class="hour-axis">${hourAxis}</g>
+    <text x="24" y="${summaryY}" class="summary">${esc(summary)}</text>
+  </svg>
+  `;
+};
+
+for (const [path, theme] of themedOutputs(outPath)) {
+  await writeSvg(path, render(theme));
+}
